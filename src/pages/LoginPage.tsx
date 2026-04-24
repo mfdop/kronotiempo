@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
   const { signIn } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -14,30 +16,40 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
     const { error } = await signIn(email, password)
-    if (error) setError(error)
-    setLoading(false)
+    if (error) {
+      setError('Email o contraseña incorrectos')
+      setLoading(false)
+    } else {
+      navigate('/animales', { replace: true })
+    }
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6"
-         style={{ background: 'linear-gradient(165deg, #5C1629 0%, #7B1F3A 100%)' }}>
-
-      {/* Logo / nombre */}
-      <div className="text-center mb-10">
-        <div className="text-6xl mb-4">🐴</div>
-        <h1 className="text-3xl font-bold text-white tracking-tight">EquiGest</h1>
-        <p className="text-white/60 text-sm mt-1">Yeguada El Tiempo</p>
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-6"
+      style={{ background: 'linear-gradient(165deg, #3D0E1C 0%, #5C1629 45%, #7B1F3A 100%)' }}
+    >
+      {/* Logo */}
+      <div className="mb-8 flex flex-col items-center">
+        <img
+          src="/logo.png"
+          alt="Kronotiempo"
+          className="w-40 h-40 object-contain mb-2"
+          style={{ filter: 'brightness(0) invert(1) opacity(0.92)' }}
+        />
+        <p className="text-white/50 text-xs tracking-widest uppercase">
+          Yeguada El Tiempo
+        </p>
       </div>
 
-      {/* Tarjeta login */}
+      {/* Card */}
       <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
-        <h2 className="text-lg font-bold mb-5" style={{ color: '#1C1010' }}>
+        <h2 className="text-[17px] font-bold mb-5" style={{ color: '#1C1010' }}>
           Acceder
         </h2>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+            <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5"
                    style={{ color: '#A08888' }}>
               Email
             </label>
@@ -47,19 +59,18 @@ export default function LoginPage() {
               onChange={e => setEmail(e.target.value)}
               placeholder="tu@email.com"
               required
-              className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+              autoComplete="email"
+              className="w-full rounded-xl px-4 py-3 text-[14px] outline-none"
               style={{
                 background: '#F7F3EE',
                 border: '1.5px solid rgba(123,31,58,0.22)',
                 color: '#1C1010',
+                fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
               }}
-              onFocus={e => e.target.style.borderColor = '#7B1F3A'}
-              onBlur={e => e.target.style.borderColor = 'rgba(123,31,58,0.22)'}
             />
           </div>
-
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block"
+            <label className="block text-[11px] font-bold uppercase tracking-wider mb-1.5"
                    style={{ color: '#A08888' }}>
               Contraseña
             </label>
@@ -69,19 +80,19 @@ export default function LoginPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
+              autoComplete="current-password"
+              className="w-full rounded-xl px-4 py-3 text-[14px] outline-none"
               style={{
                 background: '#F7F3EE',
                 border: '1.5px solid rgba(123,31,58,0.22)',
                 color: '#1C1010',
+                fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
               }}
-              onFocus={e => e.target.style.borderColor = '#7B1F3A'}
-              onBlur={e => e.target.style.borderColor = 'rgba(123,31,58,0.22)'}
             />
           </div>
 
           {error && (
-            <p className="text-sm rounded-xl px-4 py-2.5"
+            <p className="text-[13px] rounded-xl px-4 py-2.5"
                style={{ background: '#FCEAEA', color: '#8C1F1F' }}>
               {error}
             </p>
@@ -90,7 +101,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl text-white font-bold text-sm transition-opacity"
+            className="w-full py-3.5 rounded-xl text-white font-bold text-[14px] transition-opacity"
             style={{ background: '#7B1F3A', opacity: loading ? 0.6 : 1 }}
           >
             {loading ? 'Entrando...' : 'Entrar'}
@@ -98,7 +109,7 @@ export default function LoginPage() {
         </form>
       </div>
 
-      <p className="text-white/30 text-xs mt-8">
+      <p className="text-white/20 text-[11px] mt-8 tracking-wide">
         Acceso privado · Solo uso personal
       </p>
     </div>

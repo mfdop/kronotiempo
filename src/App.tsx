@@ -4,14 +4,14 @@ import { AuthProvider, useAuth } from './hooks/useAuth'
 import AppLayout from './components/layout/AppLayout'
 import LoginPage from './pages/LoginPage'
 import AnimalesPage from './pages/AnimalesPage'
+import AnimalDetailPage from './pages/AnimalDetailPage'
+import NuevoAnimalPage from './pages/NuevoAnimalPage'
 import ParcelasPage from './pages/ParcelasPage'
 import ClientesPage from './pages/ClientesPage'
 import AgendaPage from './pages/AgendaPage'
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 1000 * 60 * 5, retry: 1 },
-  },
+  defaultOptions: { queries: { staleTime: 1000 * 60 * 5, retry: 1 } },
 })
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -37,10 +37,12 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
               <Route index element={<Navigate to="/animales" replace />} />
-              <Route path="animales" element={<AnimalesPage />} />
-              <Route path="parcelas" element={<ParcelasPage />} />
-              <Route path="clientes" element={<ClientesPage />} />
-              <Route path="agenda"   element={<AgendaPage />} />
+              <Route path="animales"          element={<AnimalesPage />} />
+              <Route path="animales/nuevo"    element={<NuevoAnimalPage />} />
+              <Route path="animales/:id"      element={<AnimalDetailPage />} />
+              <Route path="parcelas"          element={<ParcelasPage />} />
+              <Route path="clientes"          element={<ClientesPage />} />
+              <Route path="agenda"            element={<AgendaPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
