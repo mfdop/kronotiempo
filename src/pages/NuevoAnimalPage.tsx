@@ -74,7 +74,18 @@ export default function NuevoAnimalPage() {
         ...azulejo,
         status: isCustodia ? 'custodia' : 'activo',
         owner_id: user!.id,
+        birth_date: form.birth_date || null,
         purchase_price: isComprado && form.purchase_price ? parseFloat(form.purchase_price) : undefined,
+        purchase_date: isComprado ? (form.purchase_date || null) : undefined,
+        alias: form.alias || undefined,
+        registry_number: form.registry_number || undefined,
+        chip: form.chip || undefined,
+        custody_owner_name: isCustodia ? (form.custody_owner_name || undefined) : undefined,
+        custody_owner_phone: isCustodia ? (form.custody_owner_phone || undefined) : undefined,
+        ios_album: form.ios_album || undefined,
+        description: form.description || undefined,
+        private_notes: form.private_notes || undefined,
+        purchase_origin: isComprado ? (form.purchase_origin || undefined) : undefined,
       } as Omit<Animal, 'id' | 'created_at' | 'updated_at'>
       const animal = await mutateAsync(payload)
       navigate(`/animales/${animal.id}`, { replace: true })
