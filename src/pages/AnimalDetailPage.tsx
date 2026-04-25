@@ -6,6 +6,8 @@ import { useUpdateAnimal } from '../hooks/useAnimals'
 import { InnerTabs, LoadingScreen, EmptyState } from '../components/ui'
 import TabInfo from '../components/horse/TabInfo'
 import TabGenealogy from '../components/horse/TabGenealogy'
+import TabVientre from '../components/horse/TabVientre'
+import TabCubriciones from '../components/horse/TabCubriciones'
 import type { Animal } from '../types'
 
 // Tabs differ by sex
@@ -94,10 +96,11 @@ export default function AnimalDetailPage() {
 
       {/* TAB CONTENT */}
       <div className="flex-1 overflow-y-auto scrollbar-hide" style={{ background: '#F7F3EE' }}>
-        {tabs[activeTab] === 'Info'       && <TabInfo animal={animal} />}
-        {tabs[activeTab] === 'Genealogía' && <TabGenealogy animal={animal} />}
-        {/* Remaining tabs placeholder until Session 2+ */}
-        {!['Info','Genealogía'].includes(tabs[activeTab]) && (
+        {tabs[activeTab] === 'Info'         && <TabInfo animal={animal} />}
+        {tabs[activeTab] === 'Genealogía'   && <TabGenealogy animal={animal} />}
+        {tabs[activeTab] === 'Vientre'      && <TabVientre animal={animal} />}
+        {tabs[activeTab] === 'Cubriciones'  && <TabCubriciones animal={animal} />}
+        {!['Info','Genealogía','Vientre','Cubriciones'].includes(tabs[activeTab]) && (
           <EmptyState
             icon="🔧"
             title={`${tabs[activeTab]} — próximamente`}
