@@ -11,6 +11,9 @@ import TabCubriciones from '../components/horse/TabCubriciones'
 import TabHerrado from '../components/horse/TabHerrado'
 import TabSalud from '../components/horse/TabSalud'
 import TabDocs from '../components/horse/TabDocs'
+import TabGenetica from '../components/horse/TabGenetica'
+import TabBalance from '../components/horse/TabBalance'
+import TabManutencion from '../components/horse/TabManutencion'
 import type { Animal } from '../types'
 
 // Tabs differ by sex
@@ -106,7 +109,10 @@ export default function AnimalDetailPage() {
         {tabs[activeTab] === 'Herrado'      && <TabHerrado animal={animal} />}
         {tabs[activeTab] === 'Salud'        && <TabSalud animal={animal} />}
         {tabs[activeTab] === 'Docs'         && <TabDocs animal={animal} />}
-        {!['Info','Genealogía','Vientre','Cubriciones','Herrado','Salud','Docs'].includes(tabs[activeTab]) && (
+        {tabs[activeTab] === 'Genética'     && <TabGenetica animal={animal} />}
+        {tabs[activeTab] === 'Balance'      && <TabBalance animal={animal} />}
+        {tabs[activeTab] === 'Manutención'  && <TabManutencion animal={animal} />}
+        {!['Info','Genealogía','Vientre','Cubriciones','Herrado','Salud','Docs','Genética','Balance','Manutención'].includes(tabs[activeTab]) && (
           <EmptyState
             icon="🔧"
             title={`${tabs[activeTab]} — próximamente`}

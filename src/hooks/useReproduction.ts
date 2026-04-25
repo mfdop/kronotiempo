@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Pregnancy, SemenSale, SemenShipping, PregnancyInterested, PregnancySale, ShoeingRecord, HealthEpisode, Vaccine, AnimalDocument } from '../types'
+import type { Pregnancy, SemenSale, SemenShipping, PregnancyInterested, PregnancySale, ShoeingRecord, HealthEpisode, Vaccine, AnimalDocument, AnimalGenetics, MaintenanceFee, MaintenanceEntry } from '../types'
 
 // ─── PREGNANCIES ─────────────────────────────────────────────
 export function usePregnancies(mareId: string | undefined) {
@@ -403,6 +403,145 @@ export function useDeleteAnimalDoc() {
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['animal-docs', data.animal_id] })
+    },
+  })
+}
+
+// ─── ANIMAL GENETICS ──────────────────────────────────────────
+export function useAnimalGenetics(animalId: string | undefined) {
+  return useQuery({
+    queryKey: ['genetics', animalId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('animal_genetics')
+        .select('*')
+        .eq('animal_id', animalId)
+        .maybeSingle()
+      if (error) throw error
+      return data as AnimalGenetics | null
+    },
+    enabled: !!animalId,
+  })
+}
+
+export function useUpsertAnimalGenetics() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: Omit<AnimalGenetics, 'id' | 'updated_at'> & { id?: string }) => {
+      const payload = { ...values, updated_at: new Date().toISOString() }
+      const { data, error } = values.id
+        ? await supabase.from('animal_genetics').update(payload).eq('id', values.id).select().single()
+        : await supabase.from('animal_genetics').insert(payload).select().single()
+      if (error) throw error
+      return data as AnimalGenetics
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['genetics', data.animal_id] })
+    },
+  })
+}
+
+// ─── PREGNANCY SALES FOR MARE (balance) ───────────────────────
+export function usePregnancySalesForMare(mareId: string | undefined) {
+  return useQuery({
+    queryKey: ['preg-sales-mare', mareId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pregnancy_sales')
+        .select('*, pregnancies!inner(id, mare_id, covered_date, result, actual_birth_date), clients(*)')
+        .eq('pregnancies.mare_id', mareId)
+      if (error) throw error
+      return data as (PregnancySale & { pregnancies: { id: string; mare_id: string; covered_date: string; result: string; actual_birth_date?: string }; clients: unknown })[]
+    },
+    enabled: !!mareId,
+  })
+}
+
+// ─── MAINTENANCE FEES ─────────────────────────────────────────
+export function useMaintenanceFees(animalId: string | undefined) {
+  return useQuery({
+    queryKey: ['maintenance-fees', animalId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('maintenance_fees')
+        .select('*')
+        .eq('animal_id', animalId)
+        .order('effective_from', { ascending: false })
+      if (error) throw error
+      return data as MaintenanceFee[]
+    },
+    enabled: !!animalId,
+  })
+}
+
+export function useCreateMaintenanceFee() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: Omit<MaintenanceFee, 'id' | 'created_at'>) => {
+      const { data, error } = await supabase
+        .from('maintenance_fees')
+        .insert(values)
+        .select()
+        .single()
+      if (error) throw error
+      return data as MaintenanceFee
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['maintenance-fees', data.animal_id] })
+    },
+  })
+}
+
+// ─── MAINTENANCE ENTRIES ──────────────────────────────────────
+export function useMaintenanceEntries(animalId: string | undefined) {
+  return useQuery({
+    queryKey: ['maintenance-entries', animalId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('maintenance_entries')
+        .select('*')
+        .eq('animal_id', animalId)
+        .order('month', { ascending: false })
+      if (error) throw error
+      return data as MaintenanceEntry[]
+    },
+    enabled: !!animalId,
+  })
+}
+
+export function useCreateMaintenanceEntry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: Omit<MaintenanceEntry, 'id' | 'created_at'>) => {
+      const { data, error } = await supabase
+        .from('maintenance_entries')
+        .insert(values)
+        .select()
+        .single()
+      if (error) throw error
+      return data as MaintenanceEntry
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['maintenance-entries', data.animal_id] })
+    },
+  })
+}
+
+export function useUpdateMaintenanceEntry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...values }: Partial<MaintenanceEntry> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('maintenance_entries')
+        .update(values)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data as MaintenanceEntry
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['maintenance-entries', data.animal_id] })
     },
   })
 }
