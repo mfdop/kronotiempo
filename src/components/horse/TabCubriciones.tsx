@@ -282,7 +282,7 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
       </div>
 
       <ClientPicker open={pickerOpen} onClose={() => setPickerOpen(false)}
-                    onSelect={c => { setClient(c); setPickerOpen(false) }}
+                    onSelect={(c: ClientBasic) => { setClient(c); setPickerOpen(false) }}
                     title="Seleccionar comprador" />
     </BottomSheet>
   )
