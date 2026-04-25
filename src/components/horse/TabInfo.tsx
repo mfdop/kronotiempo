@@ -45,12 +45,14 @@ function Label({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="rounded-2xl overflow-hidden mb-2.5"
+    <div className="rounded-2xl overflow-hidden"
          style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-      <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
+      <div className="flex items-center justify-between px-4 py-3"
+           style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
         <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>{title}</p>
+        {action}
       </div>
       <div className="p-4 space-y-3">{children}</div>
     </div>
@@ -118,40 +120,37 @@ export default function TabInfo({ animal }: { animal: Animal }) {
 
   const isCustodia = animal.status === 'custodia'
 
-  return (
-    <div className="p-3 pb-8 space-y-0">
+  const editAction = editing ? (
+    <div className="flex gap-2">
+      <button onClick={() => { setEditing(false); setError(null) }}
+              className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
+              style={{ border: '1.5px solid rgba(123,31,58,0.22)', color: '#6B5555' }}>
+        Cancelar
+      </button>
+      <button onClick={save} disabled={saving}
+              className="px-3 py-1.5 rounded-xl text-[12px] font-bold text-white"
+              style={{ background: '#7B1F3A', opacity: saving ? 0.6 : 1 }}>
+        {saving ? 'Guardando...' : 'Guardar'}
+      </button>
+    </div>
+  ) : (
+    <button onClick={() => setEditing(true)}
+            className="px-3 py-1.5 rounded-xl text-[12px] font-bold"
+            style={{ background: '#F5E8EC', color: '#7B1F3A' }}>
+      Editar
+    </button>
+  )
 
-      {/* EDIT / SAVE BAR */}
-      <div className="flex justify-end mb-3">
-        {editing ? (
-          <div className="flex gap-2">
-            <button onClick={() => { setEditing(false); setError(null) }}
-                    className="px-4 py-2 rounded-xl text-[13px] font-semibold"
-                    style={{ border: '1.5px solid rgba(123,31,58,0.22)', color: '#6B5555' }}>
-              Cancelar
-            </button>
-            <button onClick={save} disabled={saving}
-                    className="px-4 py-2 rounded-xl text-[13px] font-bold text-white"
-                    style={{ background: '#7B1F3A', opacity: saving ? 0.6 : 1 }}>
-              {saving ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
-        ) : (
-          <button onClick={() => setEditing(true)}
-                  className="px-4 py-2 rounded-xl text-[13px] font-bold"
-                  style={{ background: '#F5E8EC', color: '#7B1F3A' }}>
-            Editar
-          </button>
-        )}
-      </div>
+  return (
+    <div className="p-3 pb-8 space-y-3">
 
       {error && (
-        <p className="text-[13px] rounded-xl px-4 py-2.5 mb-3"
+        <p className="text-[13px] rounded-xl px-4 py-2.5"
            style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{error}</p>
       )}
 
-      {/* IDENTIFICACIÓN */}
-      <Section title="Identificación">
+      {/* IDENTIFICACIÓN — edit button in header */}
+      <Section title="Identificación" action={editAction}>
         <div>
           <Label>Nombre *</Label>
           {editing
@@ -248,7 +247,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
       )}
 
       {/* UBICACIÓN */}
-      <div className="rounded-2xl overflow-hidden mb-2.5"
+      <div className="rounded-2xl overflow-hidden"
            style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
         <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
           <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Ubicación</p>
@@ -315,7 +314,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
       </Section>
 
       {/* ÁLBUM IOS */}
-      <div className="rounded-2xl overflow-hidden mb-2.5"
+      <div className="rounded-2xl overflow-hidden"
            style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#E8F0F8' }}>
@@ -354,7 +353,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
       </Section>
 
       {/* NOTAS PRIVADAS */}
-      <div className="rounded-2xl p-4 mb-2.5" style={{ background: '#FAF0EA', border: '1px solid rgba(196,112,74,0.2)' }}>
+      <div className="rounded-2xl p-4" style={{ background: '#FAF0EA', border: '1px solid rgba(196,112,74,0.2)' }}>
         <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: '#C4704A' }}>Notas privadas</p>
         {editing
           ? <textarea value={f.private_notes} onChange={e => set('private_notes', e.target.value)}

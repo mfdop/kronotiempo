@@ -128,11 +128,18 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 ## Sesiones completadas
 - ✅ Sesión 0: Infraestructura, Supabase schema, Auth, deploy Vercel
 - ✅ Sesión 1: Lista animales, Ficha shell, TabInfo, TabGenealogy, NuevoAnimal, Azulejo
-- 🔄 Sesión 2 (en curso): TabVientre ✅, TabCubriciones ❌ pendiente
+- ✅ Sesión 2: TabVientre, TabCubriciones (+ 9 bugs UX corregidos en sesión 2b)
+- ✅ Sesión 3: TabHerrado, TabSalud, TabDocs
+
+## Notas sesión 3
+- Hooks añadidos a useReproduction.ts: useShoeingRecords, useCreateShoeingRecord, useHealthEpisodes, useCreateHealthEpisode, useUpdateHealthEpisode, useVaccines, useCreateVaccine, useAnimalDocs, useCreateAnimalDoc, useDeleteAnimalDoc, createAutoTask
+- TabHerrado: banner ámbar/rojo próximo herrado, stats, historial con badges de tipo, sheet add con auto-task auto_herrado
+- TabSalud: estado general semáforo, vacunas con semáforo (verde/ámbar/rojo) y auto-sugestión de próxima fecha, episodios con tap para cambiar estado, sheets add episodio y add vacuna con auto-task auto_vacuna
+- TabDocs: chips filtro, upload zone → Supabase Storage bucket 'animal-docs', path {user_id}/{animal_id}/{ts}_{filename}, preview con signed URL, delete con confirmación
+- SQL pendiente: el bucket 'animal-docs' debe crearse en Supabase Storage (public: false, tamaño: sin límite)
+- SQL pendiente: columnas grandparent externas en animals (sire_gs_external_name, sire_gd_external_name, dam_gs_external_name, dam_gd_external_name) — ver sesión 2b
 
 ## Sesiones pendientes
-- Sesión 2 resto: TabCubriciones
-- Sesión 3: TabHerrado, TabSalud, TabDocs
 - Sesión 4: TabGenética, TabBalance, TabManutención  
 - Sesión 5: Parcelas completo
 - Sesión 6: Clientes completo

@@ -48,6 +48,11 @@ export interface Animal {
   sire_external_name?: string
   dam_id?: string
   dam_external_name?: string
+  // grandparent external names (used when parent is external)
+  sire_gs_external_name?: string  // paternal grandfather
+  sire_gd_external_name?: string  // paternal grandmother
+  dam_gs_external_name?: string   // maternal grandfather
+  dam_gd_external_name?: string   // maternal grandmother
   // location
   meadow_id?: string
   // economics (own animals)

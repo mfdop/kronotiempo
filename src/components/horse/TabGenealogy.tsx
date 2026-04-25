@@ -12,10 +12,32 @@ function ageStr(b?: string) {
   return y >= 1 ? `${y} años` : ''
 }
 
-function AnimalPicker({ open, onClose, onSelect, excludeId, title }: {
+type PickerTarget = 'sire' | 'dam' | 'sire_gs' | 'sire_gd' | 'dam_gs' | 'dam_gd'
+
+// Sex filters per picker target
+const SEX_FILTER: Record<PickerTarget, Animal['sex'][]> = {
+  sire:    ['semental', 'potro', 'castrado'],
+  sire_gs: ['semental', 'potro', 'castrado'],
+  dam_gs:  ['semental', 'potro', 'castrado'],
+  dam:     ['yegua', 'potra'],
+  sire_gd: ['yegua', 'potra'],
+  dam_gd:  ['yegua', 'potra'],
+}
+
+const PICKER_TITLES: Record<PickerTarget, string> = {
+  sire:    'Seleccionar padre',
+  dam:     'Seleccionar madre',
+  sire_gs: 'Abuelo paterno',
+  sire_gd: 'Abuela paterna',
+  dam_gs:  'Abuelo materno',
+  dam_gd:  'Abuela materna',
+}
+
+function AnimalPicker({ open, onClose, onSelect, excludeId, title, sexFilter }: {
   open: boolean; onClose: () => void
   onSelect: (animal: Animal | null, externalName: string) => void
   excludeId: string; title: string
+  sexFilter?: Animal['sex'][]
 }) {
   const { data: all = [] } = useAnimals()
   const [search, setSearch] = useState('')
@@ -24,6 +46,7 @@ function AnimalPicker({ open, onClose, onSelect, excludeId, title }: {
 
   const filtered = all
     .filter(a => a.id !== excludeId)
+    .filter(a => !sexFilter || sexFilter.includes(a.sex))
     .filter(a => !search || a.name.toLowerCase().includes(search.toLowerCase()))
 
   const pick = (a: Animal) => { onSelect(a, ''); onClose(); setSearch('') }
@@ -123,6 +146,7 @@ function TreeNode({ label, animal, extName, isSubject = false, onEdit, onNav }: 
         <>
           <p className="text-[11px] font-bold truncate" style={{ color: '#1C1010' }}>{extName}</p>
           <p className="text-[9px]" style={{ color: '#A08888' }}>Externo</p>
+          {onEdit && <p className="text-[9px] font-semibold mt-0.5" style={{ color: '#7B1F3A' }}>Cambiar ›</p>}
         </>
       ) : (
         <>
@@ -138,42 +162,79 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
   const navigate           = useNavigate()
   const { data: all = [] } = useAnimals()
   const updateAnimal       = useUpdateAnimal()
-  const [picker, setPicker] = useState<'sire' | 'dam' | null>(null)
+  const [picker, setPicker] = useState<PickerTarget | null>(null)
 
   const find = (id?: string | null) => id ? all.find(a => a.id === id) : undefined
   const sire = find(animal.sire_id)
   const dam  = find(animal.dam_id)
+
+  // Grandparents — from registered animals if parent is in app, otherwise from external name fields
   const sireGS = find(sire?.sire_id)
   const sireGD = find(sire?.dam_id)
   const damGS  = find(dam?.sire_id)
   const damGD  = find(dam?.dam_id)
+
+  // External grandparent names — used when parent is external (no sire_id/dam_id)
+  const sireGSExt = sire ? (sire.sire_external_name ?? undefined) : (animal.sire_gs_external_name ?? undefined)
+  const sireGDExt = sire ? (sire.dam_external_name  ?? undefined) : (animal.sire_gd_external_name ?? undefined)
+  const damGSExt  = dam  ? (dam.sire_external_name  ?? undefined) : (animal.dam_gs_external_name  ?? undefined)
+  const damGDExt  = dam  ? (dam.dam_external_name   ?? undefined) : (animal.dam_gd_external_name  ?? undefined)
+
+  // Grandparent slots are editable only when the parent is external (no id in app)
+  const canEditGrandparents = !sire || !dam
+  const sireParentIsExternal = !sire && !!animal.sire_external_name
+  const damParentIsExternal  = !dam  && !!animal.dam_external_name
+
   const offspring = all.filter(a => a.sire_id === animal.id || a.dam_id === animal.id)
 
   const handleSelect = (selected: Animal | null, extName: string) => {
     if (!picker) return
-    updateAnimal.mutate(picker === 'sire'
-      ? { id: animal.id, sire_id: selected?.id ?? null, sire_external_name: selected ? null : (extName || null) } as Partial<Animal> & { id: string }
-      : { id: animal.id, dam_id:  selected?.id ?? null, dam_external_name:  selected ? null : (extName || null) } as Partial<Animal> & { id: string }
-    )
+    const update: Partial<Animal> & { id: string } = { id: animal.id }
+
+    if (picker === 'sire') {
+      update.sire_id = selected?.id ?? null
+      update.sire_external_name = selected ? null : (extName || null)
+    } else if (picker === 'dam') {
+      update.dam_id = selected?.id ?? null
+      update.dam_external_name = selected ? null : (extName || null)
+    } else if (picker === 'sire_gs') {
+      update.sire_gs_external_name = extName || null
+    } else if (picker === 'sire_gd') {
+      update.sire_gd_external_name = extName || null
+    } else if (picker === 'dam_gs') {
+      update.dam_gs_external_name = extName || null
+    } else if (picker === 'dam_gd') {
+      update.dam_gd_external_name = extName || null
+    }
+
+    updateAnimal.mutate(update as Partial<Animal> & { id: string })
     setPicker(null)
   }
 
   return (
     <div className="p-3 pb-8 space-y-2.5">
       <p className="text-[11px] px-1" style={{ color: '#A08888' }}>
-        Pulsa "Cambiar" para editar padre o madre · Los bisabuelos se muestran automáticamente
+        Pulsa "Añadir" o "Cambiar" para editar · Los abuelos se muestran automáticamente si el padre/madre está en la app
       </p>
 
       {/* TREE */}
       <div className="rounded-2xl p-3 space-y-0"
            style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
 
-        {/* Bisabuelos */}
+        {/* Abuelos row */}
         <div className="flex gap-1.5">
-          <TreeNode label="Bis.P. pat." animal={sireGS} extName={sire?.sire_external_name ?? undefined} />
-          <TreeNode label="Bis.M. pat." animal={sireGD} extName={sire?.dam_external_name  ?? undefined} />
-          <TreeNode label="Bis.P. mat." animal={damGS}  extName={dam?.sire_external_name  ?? undefined} />
-          <TreeNode label="Bis.M. mat." animal={damGD}  extName={dam?.dam_external_name   ?? undefined} />
+          <TreeNode label="Abuelo pat."
+                    animal={sireGS} extName={sireGSExt}
+                    onEdit={sireParentIsExternal ? () => setPicker('sire_gs') : undefined} />
+          <TreeNode label="Abuela pat."
+                    animal={sireGD} extName={sireGDExt}
+                    onEdit={sireParentIsExternal ? () => setPicker('sire_gd') : undefined} />
+          <TreeNode label="Abuelo mat."
+                    animal={damGS} extName={damGSExt}
+                    onEdit={damParentIsExternal ? () => setPicker('dam_gs') : undefined} />
+          <TreeNode label="Abuela mat."
+                    animal={damGD} extName={damGDExt}
+                    onEdit={damParentIsExternal ? () => setPicker('dam_gd') : undefined} />
         </div>
 
         {/* Connector 4→2 */}
@@ -250,11 +311,16 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
                     subtitle="Las crías aparecerán al vincular la genealogía" />
       )}
 
-      <AnimalPicker
-        open={picker !== null} onClose={() => setPicker(null)}
-        onSelect={handleSelect} excludeId={animal.id}
-        title={picker === 'sire' ? 'Seleccionar padre (sire)' : 'Seleccionar madre (dam)'}
-      />
+      {picker !== null && (
+        <AnimalPicker
+          open
+          onClose={() => setPicker(null)}
+          onSelect={handleSelect}
+          excludeId={animal.id}
+          title={PICKER_TITLES[picker]}
+          sexFilter={SEX_FILTER[picker]}
+        />
+      )}
     </div>
   )
 }
