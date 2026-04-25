@@ -289,16 +289,17 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
 }
 
 // ─── SHIPPING CARD (inside detail sheet) ─────────────────────
-function ShippingCard({ n, shipping, unlocked, saleId }: {
+function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChange }: {
   n: 1 | 2 | 3
   shipping?: SemenShipping
   unlocked: boolean
   saleId: string
+  localResult?: ShippingResult
+  onResultChange: (result: ShippingResult) => void
 }) {
   const upsert = useUpsertSemenShipping()
-  const [localResult, setLocalResult] = useState<ShippingResult | undefined>(shipping?.result)
-  const [dateInput, setDateInput]     = useState(shipping?.estimated_date ?? '')
-  const [editDate, setEditDate]       = useState(false)
+  const [dateInput, setDateInput] = useState(shipping?.estimated_date ?? '')
+  const [editDate, setEditDate]   = useState(false)
 
   const ordinal = n === 1 ? '1.er' : n === 2 ? '2.º' : '3.er'
 
@@ -308,8 +309,10 @@ function ShippingCard({ n, shipping, unlocked, saleId }: {
     { v: 'sin_prenez', label: 'Sin preñez', color: '#8C1F1F' },
   ]
 
+  const activeResult = localResult ?? shipping?.result
+
   const setResult = (result: ShippingResult) => {
-    setLocalResult(result)
+    onResultChange(result)
     upsert.mutate({
       id:             shipping?.id,
       semen_sale_id:  saleId,
@@ -326,14 +329,14 @@ function ShippingCard({ n, shipping, unlocked, saleId }: {
       id:             shipping?.id,
       semen_sale_id:  saleId,
       attempt_number: n,
-      result:         localResult ?? 'espera',
+      result:         activeResult ?? 'espera',
       estimated_date: dateInput,
     })
     setEditDate(false)
   }
 
-  const fakeShipping = localResult !== undefined
-    ? { ...shipping, result: localResult } as SemenShipping
+  const fakeShipping = activeResult !== undefined
+    ? { ...shipping, result: activeResult } as SemenShipping
     : shipping
 
   return (
@@ -377,7 +380,7 @@ function ShippingCard({ n, shipping, unlocked, saleId }: {
           )}
           <div className="flex gap-2 px-4 py-2.5">
             {RESULTS.map(({ v, label, color }) => {
-              const isActive = localResult === v || (!localResult && shipping?.result === v)
+              const isActive = activeResult === v
               return (
                 <button key={v} onClick={() => setResult(v)}
                         className="flex-1 py-2 rounded-xl text-[11px] font-semibold"
@@ -403,7 +406,16 @@ function SaleDetailSheet({ open, onClose, sale }: {
 }) {
   const updateSale = useUpdateSemenSale()
   const c = sale.clients
-  const [localStatus, setLocalStatus] = useState(sale.payment_status)
+  const [localStatus, setLocalStatus]   = useState(sale.payment_status)
+  const [localResults, setLocalResults] = useState<Partial<Record<1|2|3, ShippingResult>>>({})
+
+  const getEffectiveResult = (n: 1|2|3): ShippingResult | undefined =>
+    localResults[n] ?? getShipping(sale.semen_shippings, n)?.result
+
+  const isLocallyUnlocked = (n: 1|2|3): boolean => {
+    if (n === 1) return true
+    return getEffectiveResult((n - 1) as 1|2|3) === 'sin_prenez'
+  }
 
   const updatePayment = (status: 'sin_reserva' | 'reserva' | 'completo') => {
     setLocalStatus(status)
@@ -492,8 +504,10 @@ function SaleDetailSheet({ open, onClose, sale }: {
             {([1, 2, 3] as const).map(n => (
               <ShippingCard key={n} n={n}
                             shipping={getShipping(sale.semen_shippings, n)}
-                            unlocked={isUnlocked(sale.semen_shippings, n)}
-                            saleId={sale.id} />
+                            unlocked={isLocallyUnlocked(n)}
+                            saleId={sale.id}
+                            localResult={localResults[n]}
+                            onResultChange={result => setLocalResults(prev => ({ ...prev, [n]: result }))} />
             ))}
           </div>
         </div>
@@ -594,33 +608,36 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
 
       {/* FINANCIAL SUMMARY */}
       {yearSales.length > 0 && (
-        <div className="rounded-2xl p-4"
+        <div className="rounded-2xl overflow-hidden"
              style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-          <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>
-            Cobrado · {selectedYear}
-          </p>
-          <p className="text-[28px] font-bold mt-1" style={{ color: '#1C1010' }}>
-            {cobrado.toLocaleString('es-ES')} €
-          </p>
-          <p className="text-[12px] mt-0.5" style={{ color: '#6B5555' }}>
-            De {yearSales.length} {yearSales.length === 1 ? 'venta' : 'ventas'} · {totalEnvios} envíos realizados
-          </p>
+          <div className="px-4 py-4" style={{ background: '#7B1F3A' }}>
+            <p className="text-[11px] font-bold uppercase tracking-wider"
+               style={{ color: 'rgba(255,255,255,0.65)' }}>
+              Cobrado · {selectedYear}
+            </p>
+            <p className="text-[28px] font-bold mt-1" style={{ color: '#fff' }}>
+              {cobrado.toLocaleString('es-ES')} €
+            </p>
+            <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              De {yearSales.length} {yearSales.length === 1 ? 'venta' : 'ventas'} · {totalEnvios} envíos realizados
+            </p>
+          </div>
           {estimado > cobrado && (
-            <div className="flex items-center justify-between mt-2 pt-2"
-                 style={{ borderTop: '1px solid rgba(123,31,58,0.08)' }}>
-              <span className="text-[11px]" style={{ color: '#A08888' }}>
-                Estimado total (reservas pendientes)
+            <div className="flex items-center justify-between px-4 py-2.5"
+                 style={{ background: '#FDF3DC', borderBottom: '1px solid rgba(156,106,0,0.15)' }}>
+              <span className="text-[11px]" style={{ color: '#9C6A00' }}>
+                Total acordado (pendiente cobro)
               </span>
-              <span className="text-[13px] font-bold" style={{ color: '#9C6A00' }}>
+              <span className="text-[14px] font-bold" style={{ color: '#9C6A00' }}>
                 {estimado.toLocaleString('es-ES')} €
               </span>
             </div>
           )}
-          <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="grid grid-cols-3 gap-2 p-3">
             {[
-              [`${yearSales.length}`, 'Ventas',       '#1C1010'],
-              [`${totalEnvios}`,      'Envíos totales','#1C1010'],
-              [`${exitoPct}%`,        'Ventas con éxito', '#2E6B3E'],
+              [`${yearSales.length}`, 'Ventas',        '#1C1010'],
+              [`${totalEnvios}`,      'Envíos totales', '#1C1010'],
+              [`${exitoPct}%`,        'Con preñez',     '#2E6B3E'],
             ].map(([v, l, c]) => (
               <div key={l} className="text-center rounded-xl py-2" style={{ background: '#F7F3EE' }}>
                 <p className="text-[16px] font-bold" style={{ color: c }}>{v}</p>
