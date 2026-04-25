@@ -130,6 +130,7 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ✅ Sesión 1: Lista animales, Ficha shell, TabInfo, TabGenealogy, NuevoAnimal, Azulejo
 - ✅ Sesión 2: TabVientre, TabCubriciones (+ 9 bugs UX corregidos en sesión 2b)
 - ✅ Sesión 3: TabHerrado, TabSalud, TabDocs
+- ✅ Sesión 4: TabGenética, TabBalance, TabManutención + fix fechas NuevoAnimalPage
 
 ## Notas sesión 3
 - Hooks añadidos a useReproduction.ts: useShoeingRecords, useCreateShoeingRecord, useHealthEpisodes, useCreateHealthEpisode, useUpdateHealthEpisode, useVaccines, useCreateVaccine, useAnimalDocs, useCreateAnimalDoc, useDeleteAnimalDoc, createAutoTask
@@ -139,8 +140,18 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - SQL pendiente: el bucket 'animal-docs' debe crearse en Supabase Storage (public: false, tamaño: sin límite)
 - SQL pendiente: columnas grandparent externas en animals (sire_gs_external_name, sire_gd_external_name, dam_gs_external_name, dam_gd_external_name) — ver sesión 2b
 
+## Notas sesión 4
+- Hooks añadidos a useReproduction.ts: useAnimalGenetics, useUpsertAnimalGenetics, usePregnancySalesForMare, useMaintenanceFees, useCreateMaintenanceFee, useMaintenanceEntries, useCreateMaintenanceEntry, useUpdateMaintenanceEntry
+- TabGenética: fenotipo inline (coat_base/pattern/marcas → animals table), genotipo 6+6 loci en sheet editable, PDF lab → bucket 'genetics-docs', predicción cruce Mendeliana con epistasis Grey
+- TabBalance: semental (cubriciones + crías vendidas − adquisición), yegua (vientres + crías − adquisición), custodia (manutención cobrada), otros (solo adquisición). Timeline cronológico
+- TabManutención (solo custodia): configurar mensualidad, auto-crear entrada mes actual si falta, toggle pagado/pendiente inline, sumario cobrado/pendiente
+- SQL pendiente: bucket 'genetics-docs' en Supabase Storage (public: false)
+- SQL pendiente: tabla animal_genetics (id, animal_id, grey, extension, agouti, cream, pearl, appaloosa, dun, silver, roan, tobiano, overo, sabino, lab_pdf_path, lab_date, lab_institution, notes, updated_at)
+- SQL pendiente: tabla maintenance_fees (id, animal_id, monthly_amount, effective_from, notes, created_at)
+- SQL pendiente: tabla maintenance_entries (id, animal_id, fee_id, month, amount, payment_status, paid_date, created_at)
+- Fix NuevoAnimalPage: fechas vacías → null, strings vacíos → undefined en payload
+
 ## Sesiones pendientes
-- Sesión 4: TabGenética, TabBalance, TabManutención  
 - Sesión 5: Parcelas completo
 - Sesión 6: Clientes completo
 - Sesión 7: Agenda completo
