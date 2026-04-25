@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   usePregnancies, useCreatePregnancy, useUpdatePregnancy,
   usePregnancyInterested, useCreatePregnancyInterested,
@@ -30,6 +30,9 @@ const RESULT_COLORS: Record<PregnancyResult, { bg: string; color: string }> = {
   mortinato:  { bg: '#FCEAEA', color: '#8C1F1F' },
   no_prenada: { bg: '#FDF3DC', color: '#9C6A00' },
 }
+
+type ClientRow = { id: string; name: string; phone?: string|null; instagram?: string|null; city?: string|null; stable_name?: string|null }
+type SaleWithClient = PregnancySale & { clients: ClientRow | null; id: string }
 
 function daysToBirth(expected?: string | null) {
   if (!expected) return null
@@ -166,41 +169,83 @@ function AddPregnancySheet({ open, onClose, mareId, onSaved }: {
 function PregnancyDetailSheet({ open, onClose, pregnancy }: {
   open: boolean; onClose: () => void; pregnancy: Pregnancy
 }) {
-  const update                  = useUpdatePregnancy()
+  const update                    = useUpdatePregnancy()
   const { data: interested = [] } = usePregnancyInterested(pregnancy.id)
-  const { data: sale }          = usePregnancySale(pregnancy.id)
-  const createInterested        = useCreatePregnancyInterested()
-  const upsertSale              = useUpsertPregnancySale()
-  const [tab, setTab]           = useState<'info' | 'interested' | 'buyer'>('info')
+  const { data: saleRaw }         = usePregnancySale(pregnancy.id)
+  const sale                      = saleRaw as SaleWithClient | null
+  const createInterested          = useCreatePregnancyInterested()
+  const upsertSale                = useUpsertPregnancySale()
+  const [tab, setTab]             = useState<'info' | 'interested' | 'buyer'>('info')
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
   const [buyerPickerOpen,  setBuyerPickerOpen]  = useState(false)
+
+  // Optimistic local state for result pills
+  const [localResult, setLocalResultState] = useState<PregnancyResult>(pregnancy.result)
+
+  // Two-step add for interested with notes
+  const [pendingClient,    setPendingClient]    = useState<ClientBasic | null>(null)
+  const [interestedNotes,  setInterestedNotes]  = useState('')
+
+  // Buyer tab local state
+  const [localPayment, setLocalPayment]   = useState<'sin_reserva'|'reserva'|'completo'>('sin_reserva')
+  const [localPrice,   setLocalPrice]     = useState('')
+  const [localDeposit, setLocalDeposit]   = useState('')
+
+  useEffect(() => {
+    if (sale) {
+      setLocalPayment(sale.payment_status)
+      setLocalPrice(sale.agreed_price > 0 ? String(sale.agreed_price) : '')
+      setLocalDeposit(sale.deposit_amount ? String(sale.deposit_amount) : '')
+    }
+  }, [sale?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const days = daysToBirth(pregnancy.expected_birth_date)
 
   const RESULTS: PregnancyResult[] = ['gestante','cria_viva','aborto','gemelar','mortinato','no_prenada']
 
   const setResult = (r: PregnancyResult) => {
+    setLocalResultState(r)
     update.mutate({ id: pregnancy.id, result: r })
   }
 
-  const addInterested = (client: ClientBasic) => {
-    createInterested.mutate({ pregnancy_id: pregnancy.id, client_id: client.id })
+  const confirmInterested = () => {
+    if (!pendingClient) return
+    createInterested.mutate({
+      pregnancy_id: pregnancy.id,
+      client_id: pendingClient.id,
+      notes: interestedNotes || undefined,
+    })
+    setPendingClient(null)
+    setInterestedNotes('')
   }
 
   const importAsBuyer = (client: ClientBasic) => {
     setBuyerPickerOpen(false)
     upsertSale.mutate({
-      pregnancy_id: pregnancy.id,
-      client_id: client.id,
-      agreed_price: 0,
+      pregnancy_id:   pregnancy.id,
+      client_id:      client.id,
+      agreed_price:   0,
       payment_status: 'sin_reserva',
     })
     setTab('buyer')
   }
 
-  const updatePayment = (status: string) => {
+  const updatePayment = (status: 'sin_reserva'|'reserva'|'completo') => {
     if (!sale) return
-    upsertSale.mutate({ ...(sale as Parameters<typeof upsertSale.mutate>[0]), id: (sale as { id?: string }).id, payment_status: status as 'sin_reserva' | 'reserva' | 'completo' })
+    setLocalPayment(status)
+    upsertSale.mutate({ pregnancy_id: sale.pregnancy_id, client_id: sale.client_id, agreed_price: sale.agreed_price, payment_status: status, id: sale.id })
+  }
+
+  const savePrice = () => {
+    if (!sale) return
+    const price = parseFloat(localPrice) || 0
+    upsertSale.mutate({ pregnancy_id: sale.pregnancy_id, client_id: sale.client_id, agreed_price: price, payment_status: localPayment, deposit_amount: parseFloat(localDeposit) || undefined, id: sale.id })
+  }
+
+  const saveDeposit = () => {
+    if (!sale) return
+    const deposit = parseFloat(localDeposit) || undefined
+    upsertSale.mutate({ pregnancy_id: sale.pregnancy_id, client_id: sale.client_id, agreed_price: parseFloat(localPrice) || 0, payment_status: localPayment, deposit_amount: deposit, id: sale.id })
   }
 
   return (
@@ -211,7 +256,7 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
         <div className="flex gap-1.5 flex-wrap">
           {RESULTS.map(r => {
             const c = RESULT_COLORS[r]
-            const isActive = pregnancy.result === r
+            const isActive = localResult === r
             return (
               <button key={r} onClick={() => setResult(r)}
                       className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
@@ -285,16 +330,42 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
             <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>
               {interested.length} interesados
             </p>
-            <button onClick={() => setClientPickerOpen(true)}
-                    className="text-[13px] font-bold" style={{ color: '#7B1F3A' }}>
-              + Añadir
-            </button>
+            {!pendingClient && (
+              <button onClick={() => setClientPickerOpen(true)}
+                      className="text-[13px] font-bold" style={{ color: '#7B1F3A' }}>
+                + Añadir
+              </button>
+            )}
           </div>
-          {interested.length === 0 ? (
+
+          {/* Two-step: pick client → notes → confirm */}
+          {pendingClient && (
+            <div className="rounded-xl p-3 space-y-2"
+                 style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)' }}>
+              <div className="flex items-center justify-between">
+                <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>
+                  {pendingClient.name}
+                </p>
+                <button onClick={() => setPendingClient(null)}
+                        className="text-[16px] leading-none" style={{ color: '#A08888' }}>×</button>
+              </div>
+              <textarea value={interestedNotes} onChange={e => setInterestedNotes(e.target.value)}
+                        rows={2} placeholder="Notas sobre el interesado (opcional)..."
+                        className="w-full rounded-xl px-3 py-2 text-[13px] outline-none resize-none"
+                        style={{ background: '#fff', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+              <button onClick={confirmInterested}
+                      className="w-full py-2 rounded-xl text-[13px] font-bold"
+                      style={{ background: '#7B1F3A', color: '#fff' }}>
+                Confirmar interesado
+              </button>
+            </div>
+          )}
+
+          {interested.length === 0 && !pendingClient ? (
             <p className="text-center py-6 text-[13px] italic" style={{ color: '#A08888' }}>Sin interesados aún</p>
-          ) : (
+          ) : interested.length > 0 ? (
             <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(123,31,58,0.11)' }}>
-              {(interested as Array<{ id: string; notes?: string | null; clients: { id: string; name: string; phone?: string | null; instagram?: string | null; city?: string | null; stable_name?: string | null } }>).map((item, i, arr) => (
+              {(interested as Array<{ id: string; notes?: string | null; clients: ClientRow }>).map((item, i, arr) => (
                 <div key={item.id} className="px-4 py-3 bg-white"
                      style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
                   <div className="flex items-center justify-between">
@@ -313,9 +384,11 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
+
           <ClientPicker open={clientPickerOpen} onClose={() => setClientPickerOpen(false)}
-                        onSelect={addInterested} title="Añadir interesado" />
+                        onSelect={c => { setClientPickerOpen(false); setPendingClient(c); setInterestedNotes('') }}
+                        title="Añadir interesado" />
         </div>
       )}
 
@@ -331,18 +404,45 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
             </>
           ) : (
             <>
-              {/* Price */}
+              {/* Client info */}
+              {sale.clients && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+                  <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
+                    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Comprador</p>
+                  </div>
+                  {[
+                    ['Nombre', sale.clients.name],
+                    sale.clients.stable_name ? ['Yeguada',  sale.clients.stable_name]       : null,
+                    sale.clients.city        ? ['Ciudad',   sale.clients.city]               : null,
+                    sale.clients.phone       ? ['Teléfono', sale.clients.phone]              : null,
+                    sale.clients.instagram   ? ['Instagram',`@${sale.clients.instagram}`]   : null,
+                  ].filter(Boolean).map((row, i) => {
+                    const [label, value] = row as [string, string]
+                    return (
+                      <div key={i} className="flex justify-between px-4 py-2.5"
+                           style={{ borderTop: i > 0 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
+                        <span className="text-[13px]" style={{ color: '#6B5555' }}>{label}</span>
+                        <span className="text-[13px] font-semibold"
+                              style={{ color: label === 'Instagram' ? '#833AB4' : '#1C1010' }}>
+                          {value}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Payment */}
               <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
                 <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
                   <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Estado del pago</p>
                 </div>
-                {/* Progress bar */}
                 <div className="px-4 pt-3">
                   <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F7F3EE' }}>
                     <div className="h-full rounded-full transition-all"
                          style={{
-                           width: sale.payment_status === 'completo' ? '100%' : sale.payment_status === 'reserva' ? '30%' : '0%',
-                           background: sale.payment_status === 'completo' ? '#2E6B3E' : '#9C6A00',
+                           width:      localPayment === 'completo' ? '100%' : localPayment === 'reserva' ? '30%' : '0%',
+                           background: localPayment === 'completo' ? '#2E6B3E' : '#9C6A00',
                          }} />
                   </div>
                 </div>
@@ -353,36 +453,32 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
                       <button key={s} onClick={() => updatePayment(s)}
                               className="flex-1 py-2 rounded-xl text-[11px] font-semibold"
                               style={{
-                                background: sale.payment_status === s ? p.color : '#F7F3EE',
-                                color: sale.payment_status === s ? '#fff' : '#6B5555',
-                                border: `1.5px solid ${sale.payment_status === s ? p.color : 'rgba(123,31,58,0.22)'}`,
+                                background: localPayment === s ? p.color : '#F7F3EE',
+                                color:      localPayment === s ? '#fff'   : '#6B5555',
+                                border: `1.5px solid ${localPayment === s ? p.color : 'rgba(123,31,58,0.22)'}`,
                               }}>{p.label}</button>
                     )
                   })}
                 </div>
-                {/* Amounts */}
-                <div className="flex px-4 pb-3 gap-3">
-                  <div className="flex-1">
-                    <p className="text-[10px]" style={{ color: '#A08888' }}>Reserva</p>
-                    <p className="text-[16px] font-bold" style={{ color: '#9C6A00' }}>
-                      {sale.deposit_amount ? `${sale.deposit_amount.toLocaleString('es-ES')} €` : '—'}
-                    </p>
+                {/* Editable amounts */}
+                <div className="flex px-4 pb-3 gap-3" style={{ borderTop: '1px solid rgba(123,31,58,0.08)' }}>
+                  <div className="flex-1 pt-2">
+                    <p className="text-[10px] mb-1" style={{ color: '#A08888' }}>Reserva (€)</p>
+                    <input type="number" inputMode="numeric"
+                           value={localDeposit} onChange={e => setLocalDeposit(e.target.value)}
+                           onBlur={saveDeposit} placeholder="0"
+                           className="w-full rounded-xl px-3 py-2 text-[14px] font-bold outline-none"
+                           style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#9C6A00' }} />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-[10px]" style={{ color: '#A08888' }}>Total acordado</p>
-                    <p className="text-[16px] font-bold" style={{ color: '#1C1010' }}>
-                      {sale.agreed_price ? `${sale.agreed_price.toLocaleString('es-ES')} €` : '—'}
-                    </p>
+                  <div className="flex-1 pt-2">
+                    <p className="text-[10px] mb-1" style={{ color: '#A08888' }}>Total acordado (€)</p>
+                    <input type="number" inputMode="numeric"
+                           value={localPrice} onChange={e => setLocalPrice(e.target.value)}
+                           onBlur={savePrice} placeholder="0"
+                           className="w-full rounded-xl px-3 py-2 text-[14px] font-bold outline-none"
+                           style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
                   </div>
                 </div>
-              </div>
-
-              {/* Venta tag visible en header */}
-              <div className="rounded-xl px-4 py-2.5 flex items-center justify-between"
-                   style={{ background: '#EAF3EC', border: '1px solid rgba(46,107,62,0.2)' }}>
-                <span className="text-[12px] font-bold" style={{ color: '#2E6B3E' }}>
-                  Vendido · {sale.agreed_price ? `${sale.agreed_price.toLocaleString('es-ES')} €` : 'Precio pendiente'}
-                </span>
               </div>
             </>
           )}

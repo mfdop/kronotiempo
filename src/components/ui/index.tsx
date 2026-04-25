@@ -311,11 +311,17 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
       >
         <div className="w-9 h-1 rounded-full mx-auto mb-4"
              style={{ background: 'rgba(123,31,58,0.22)' }} />
-        {title && (
-          <h2 className="text-[17px] font-bold mb-5" style={{ color: '#1C1010' }}>
-            {title}
-          </h2>
-        )}
+        <div className="flex items-center justify-between mb-5">
+          {title
+            ? <h2 className="text-[17px] font-bold" style={{ color: '#1C1010' }}>{title}</h2>
+            : <div />
+          }
+          <button onClick={onClose}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[20px] leading-none shrink-0"
+                  style={{ background: '#F7F3EE', color: '#6B5555' }}>
+            ×
+          </button>
+        </div>
         {children}
       </div>
     </div>
