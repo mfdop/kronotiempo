@@ -181,7 +181,6 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
   const damGDExt  = dam  ? (dam.dam_external_name   ?? undefined) : (animal.dam_gd_external_name  ?? undefined)
 
   // Grandparent slots are editable only when the parent is external (no id in app)
-  const canEditGrandparents = !sire || !dam
   const sireParentIsExternal = !sire && !!animal.sire_external_name
   const damParentIsExternal  = !dam  && !!animal.dam_external_name
 
@@ -192,19 +191,19 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
     const update: Partial<Animal> & { id: string } = { id: animal.id }
 
     if (picker === 'sire') {
-      update.sire_id = selected?.id ?? null
-      update.sire_external_name = selected ? null : (extName || null)
+      update.sire_id = selected?.id ?? undefined
+      update.sire_external_name = selected ? undefined : (extName || undefined)
     } else if (picker === 'dam') {
-      update.dam_id = selected?.id ?? null
-      update.dam_external_name = selected ? null : (extName || null)
+      update.dam_id = selected?.id ?? undefined
+      update.dam_external_name = selected ? undefined : (extName || undefined)
     } else if (picker === 'sire_gs') {
-      update.sire_gs_external_name = extName || null
+      update.sire_gs_external_name = extName || undefined
     } else if (picker === 'sire_gd') {
-      update.sire_gd_external_name = extName || null
+      update.sire_gd_external_name = extName || undefined
     } else if (picker === 'dam_gs') {
-      update.dam_gs_external_name = extName || null
+      update.dam_gs_external_name = extName || undefined
     } else if (picker === 'dam_gd') {
-      update.dam_gd_external_name = extName || null
+      update.dam_gd_external_name = extName || undefined
     }
 
     updateAnimal.mutate(update as Partial<Animal> & { id: string })
