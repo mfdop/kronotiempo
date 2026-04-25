@@ -1,0 +1,167 @@
+# KRONOTIEMPO — Contexto completo para Claude Code
+
+## Qué es este proyecto
+PWA de gestión ganadera para la Yeguada El Tiempo, una ganadería familiar
+de ~50 cabezas Appaloosa orientada a doma vaquera y venta de semen.
+Es un regalo personal. Sin intención comercial. Coste: solo el dominio.
+
+## Stack tecnológico
+- React 18 + TypeScript + Vite
+- Tailwind CSS v3 (solo utilities, NO component classes)
+- TanStack Query v5 (estado del servidor)
+- React Router v6 (navegación)
+- Supabase (DB PostgreSQL + Auth + Storage PDFs)
+- date-fns (fechas)
+- Vercel (deploy automático desde GitHub)
+- PWA instalable en iOS/iPad desde Safari
+
+## Reglas de diseño — MUY IMPORTANTES
+- Paleta: granate #7B1F3A (primario), arena #F7F3EE (fondo), blanco #FFFFFF (cards)
+- NUNCA usar clases de color Tailwind (bg-red-500 etc). SIEMPRE style inline para colores de marca
+- Cards: rounded-2xl, border '1px solid rgba(123,31,58,0.11)', background #fff
+- Nav bars: background #7B1F3A, texto blanco
+- Hero headers: gradient '165deg, #5C1629 0%, #7B1F3A 100%'
+- Textos: primary #1C1010, secondary #6B5555, tertiary #A08888
+- Estética: iOS nativo, celdas con chevron, tabs horizontales scrollables
+- Azulejos: iconos de caballo estilo azulejo cerámico andaluz con borde granate
+- Borde discontinuo en azulejo = animal en custodia
+
+## Estructura de navegación (4 tabs principales)
+1. **Animales** — lista de caballos agrupada por categoría
+2. **Parcelas** — praderas con contadores agua/comida
+3. **Clientes** — contactos con historial de transacciones automático
+4. **Agenda** — tareas manuales + alertas automáticas del sistema
+
+## Ficha de cada animal (tabs internas, varían por sexo)
+- Info (todos) — editable inline
+- Genealogía (todos) — árbol 3 gen + edición con picker
+- **Vientre** (solo hembras) — embarazos, interesados, comprador
+- **Cubriciones** (solo machos) — ventas de semen, envíos, pagos
+- Herrado (todos)
+- Salud (todos)
+- Genética (todos) — fenotipo + genotipo laboratorio + predicción cruce
+- Docs (todos) — PDFs en Supabase Storage
+- Balance (todos) — resumen económico (venta de vientre SOLO computa en madre)
+- **Manutención** (solo custodia) — mensualidades automáticas
+
+## Animales en custodia
+- Mismo comportamiento que animales propios
+- Diferencia visual: borde discontinuo en azulejo
+- Pestaña extra "Manutención" con mensualidades automáticas mensuales
+- Tienen campos custody_owner_name y custody_owner_phone
+
+## Lógica de clientes
+- Se crean automáticamente al registrar cualquier operación
+- Identificadores únicos: teléfono O Instagram (uno de los dos obligatorio)
+- Si se intenta crear con teléfono/Instagram existente: error "Teléfono ya utilizado para XXXXX"
+- La ficha de cliente agrega automáticamente TODAS sus transacciones (cubriciones + vientres)
+- Tags automáticos según transacciones: Cubriciones, Vientre, Interesado, Vendedor
+
+## Cubriciones (ventas de semen) — COMPLEJO
+- Una venta tiene precio total = reserva + pago final
+- Hasta 3 envíos incluidos: 1º pago completo, 2º y 3º solo si no preña (sin coste extra)
+- Estados de envío: prenez / espera / sin_prenez
+- Si sin_prenez → se desbloquea el siguiente envío automáticamente
+- Fecha estimada de envío → va al calendario iOS via .ics
+- Resumen financiero: cobrado real vs estimado (con reservas pendientes)
+- Filtros: por año (selector dinámico) y "solo pendientes de preñez"
+
+## Vientre (embarazos) — COMPLEJO
+- Cada embarazo tiene: tipo monta (natural/IA), padre, fechas, resultado
+- Resultado: gestante / cria_viva / aborto / gemelar / mortinato / no_prenada
+- Parto estimado = fecha cubrición + 340 días (auto-calculado)
+- Dentro de cada embarazo: tab Interesados + tab Comprador definitivo
+- Comprador: reserva + pago entrega, precio en tag verde en el header del embarazo
+- Se puede importar un interesado como comprador con un botón
+- Precio de venta del vientre SOLO aparece en Balance de la madre (no duplicar)
+
+## Parcelas
+- Lista simple (sin mapa)
+- Cada card: icono emoji elegible, barra color (low opacity), nombre, ha, nº animales
+- Contadores agua y comida: semáforo basado en media histórica automática
+  - Verde: dentro de la media
+  - Ámbar: superada la mitad de la media → genera alerta en Agenda
+  - Rojo: superada la media completa → aparece como tarea "Hoy" en Agenda
+- Pulsar contador → toast de confirmación → resetea a hoy + guarda en historial
+- Detalle parcela: info + ref catastral + historial agua + historial comida
+- Tab Animales dentro de parcela: lista + botón mover (elimina de la otra)
+
+## Agenda
+- Secciones en orden: Pendientes (vencidas no completadas) / Hoy / Esta semana / Próximamente (2 semanas) / Completadas
+- Tareas manuales: título, descripción, fecha, prioridad
+- Alertas automáticas generadas por el sistema (origen en campo `origin`):
+  - auto_parto: X días antes del parto estimado
+  - auto_herrado: cuando se acerca fecha estimada siguiente herrado
+  - auto_vacuna: cuando vence una vacuna
+  - auto_agua / auto_comida: cuando parcela llega a ámbar
+- Agua/comida en rojo → aparece en "Hoy". En ámbar → aparece en "Esta semana"
+- "Próximamente" NO muestra tareas de agua/comida
+- Botón "Importar a calendario" → genera .ics con tareas de la semana (sin agua/comida)
+- Nota del día: texto libre, una por día, editable directamente en pantalla
+
+## Genética de capas — lógica
+- Color base (excluyente): Negro / Castaño / Alazán
+- Patrón (excluyente): Lisa / Pío / Appaloosa  
+- Marcas adicionales independientes: Careto / Cuatroalbo
+- Loci visibles por defecto: Grey, Extension, Agouti, Cream, Pearl, Appaloosa(LP)
+- Loci secundarios colapsados: Dun, Silver, Roan, Tobiano, Overo, Sabino
+- Predicción de cruce: selector de pareja → % por color base + % por patrón separados
+- Grey es epistático (domina sobre todo si tiene al menos un alelo G)
+
+## Balance económico
+- Semental: cobrado en cubriciones + crías vendidas - coste adquisición
+- Yegua: cobrado en vientres - coste adquisición (las cubriciones del semental no cuentan aquí)
+- Potro: su venta aparece SOLO en el Balance de su madre
+- Animal custodia: cobrado en manutención
+- Timeline cronológico de todos los movimientos
+
+## Fix pendiente — NuevoAnimalPage
+Las fechas vacías se envían como string vacío "" en lugar de null.
+Arreglo: antes de hacer mutateAsync, convertir cualquier campo de fecha vacío a undefined/null:
+```ts
+birth_date: form.birth_date || null,
+purchase_date: form.purchase_date || null,  // solo si isComprado
+```
+Fecha de nacimiento NO es obligatoria (quitar validación).
+Fecha de compra es completamente opcional (no mostrar si no es comprado).
+
+## Sesiones completadas
+- ✅ Sesión 0: Infraestructura, Supabase schema, Auth, deploy Vercel
+- ✅ Sesión 1: Lista animales, Ficha shell, TabInfo, TabGenealogy, NuevoAnimal, Azulejo
+- 🔄 Sesión 2 (en curso): TabVientre ✅, TabCubriciones ❌ pendiente
+
+## Sesiones pendientes
+- Sesión 2 resto: TabCubriciones
+- Sesión 3: TabHerrado, TabSalud, TabDocs
+- Sesión 4: TabGenética, TabBalance, TabManutención  
+- Sesión 5: Parcelas completo
+- Sesión 6: Clientes completo
+- Sesión 7: Agenda completo
+- Sesión 8: QA, PWA icons, test iPhone real
+
+## Archivos clave a leer para entender el proyecto
+1. src/types/index.ts — TODAS las entidades TypeScript
+2. src/lib/constants.ts — paleta, opciones, loci genéticos
+3. src/lib/supabase.ts — cliente
+4. src/hooks/useAuth.tsx — autenticación
+5. src/hooks/useAnimals.ts — CRUD animales
+6. src/hooks/useReproduction.ts — pregnancies, semen, clients
+7. src/components/ui/index.tsx — primitivos UI reutilizables
+8. src/components/ui/ClientPicker.tsx — selector/creador de clientes
+9. src/components/horse/Azulejo.tsx — icono azulejo + customizer
+10. src/components/horse/TabVientre.tsx — patrón de referencia para tabs complejas
+11. src/components/layout/AppLayout.tsx — navegación principal
+12. src/App.tsx — router completo
+
+## Comandos útiles
+```bash
+npm run dev      # desarrollo local
+npm run build    # verificar TypeScript + build
+git add -A && git commit -m "mensaje" && git push  # deploy a Vercel
+```
+
+## Variables de entorno necesarias (.env)
+```
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+```
