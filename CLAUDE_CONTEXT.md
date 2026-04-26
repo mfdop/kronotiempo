@@ -131,6 +131,7 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ✅ Sesión 2: TabVientre, TabCubriciones (+ 9 bugs UX corregidos en sesión 2b)
 - ✅ Sesión 3: TabHerrado, TabSalud, TabDocs
 - ✅ Sesión 4: TabGenética, TabBalance, TabManutención + fix fechas NuevoAnimalPage
+- ✅ Sesión 5: Parcelas completo (lista + detalle) + Clientes completo (lista + detalle)
 
 ## Notas sesión 3
 - Hooks añadidos a useReproduction.ts: useShoeingRecords, useCreateShoeingRecord, useHealthEpisodes, useCreateHealthEpisode, useUpdateHealthEpisode, useVaccines, useCreateVaccine, useAnimalDocs, useCreateAnimalDoc, useDeleteAnimalDoc, createAutoTask
@@ -151,11 +152,20 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - SQL pendiente: tabla maintenance_entries (id, animal_id, fee_id, month, amount, payment_status, paid_date, created_at)
 - Fix NuevoAnimalPage: fechas vacías → null, strings vacíos → undefined en payload
 
+## Notas sesión 5
+- useMeadows.ts: useMeadows (con nested logs+animals), useMeadow, useUpdateMeadow, useMeadowWaterLogs, useMeadowFoodLogs, useLogWater, useLogFood. Helper computeWaterFoodStatus(logs[], defaultAvg) + statusTextColor(status)
+- ParcelasPage: lista cards con band color, emoji, contador animales, agua (días + semáforo), comida. ConfirmToast + auto-task auto_agua/auto_comida por sesión (ref guard)
+- ParcelasDetailPage: hero con emoji+color, tabs Info/Animales. Tab Info: big buttons agua/comida, historial 10 registros c/u, info editable. Tab Animales: lista con Azulejo, Mover (sheet destino), +Añadir (picker animales). EditMeadowSheet con color+emoji picker. Ruta: /parcelas/:id
+- useReproduction.ts: useClientSummaries (clients con semen_sales+pregnancy_sales+pregnancy_interested embed → tags+totales), useClientById, useClientTransactions (3 arrays paralelas)
+- ClientesPage: buscador en header granate, chips filtro (Todos/Cubriciones/Vientres/Interesados/Con deuda), cards con avatar inicial, tags de color, stats 3 columnas. Ruta: /clientes
+- ClienteDetailPage: hero con avatar inicial, tags chips, total cobrado/pendiente. Card contacto con tel (llamada directa), @instagram, ciudad, yeguada, notas. Historial unificado con icono por tipo (💉cubricion, 🐴vientre, ⭐interesado), importe, badge pago, fecha. Ruta: /clientes/:id
+- App.tsx: añadidas rutas /parcelas/:id y /clientes/:id
+- SQL pendiente: tablas meadows, meadow_water_logs, meadow_food_logs deben existir con FK meadow_id. FK client_id en semen_sales, pregnancy_sales, pregnancy_interested
+- El campo "vendedor" de ClientTagType no se implementa (requeriría join inverso desde animals.sold_client_id → fácil de añadir en sesión futura)
+
 ## Sesiones pendientes
-- Sesión 5: Parcelas completo
-- Sesión 6: Clientes completo
-- Sesión 7: Agenda completo
-- Sesión 8: QA, PWA icons, test iPhone real
+- Sesión 6: Agenda completo
+- Sesión 7: QA, PWA icons, test iPhone real
 
 ## Archivos clave a leer para entender el proyecto
 1. src/types/index.ts — TODAS las entidades TypeScript
