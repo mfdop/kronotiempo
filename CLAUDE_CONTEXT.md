@@ -132,6 +132,18 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ✅ Sesión 3: TabHerrado, TabSalud, TabDocs
 - ✅ Sesión 4: TabGenética, TabBalance, TabManutención + fix fechas NuevoAnimalPage
 - ✅ Sesión 5: Parcelas completo (lista + detalle) + Clientes completo (lista + detalle)
+- ✅ Sesión 6: Agenda completo
+
+## Notas sesión 6
+- useTasks.ts (nuevo): useTasks() (todas las tareas ordenadas por due_date nullsLast), useCreateTask(), useUpdateTask(), useCompleteTask() (sets status+completed_at), useDailyNote(date), useUpsertDailyNote() (upsert onConflict owner_id,date), useAutoTasks() (effect con ref guard: queries pregnancies gestantes ≤14 días, shoeing_records overdue, vaccines overdue → createAutoTask si no existe ya pendiente con mismo origin|animal_id)
+- AgendaPage: nota del día (textarea + debounce 1s → upsert); 5 secciones en orden estricto: PENDIENTES (accent rojo, tareas vencidas o sin fecha), HOY (accent granate), ESTA SEMANA (accent ámbar, 1-6 días), PRÓXIMAMENTE (accent gris, 7-13 días, sin auto_agua/comida), COMPLETADAS HOY
+- Cada tarea: checkbox circular (tap → completeTask), badges prioridad/Auto/📅, borde ámbar izquierdo en tareas auto
+- Auto badge muestra "Auto · Parto|Herrado|Vacuna|Agua|Comida". 📅 badge en tareas manuales con fecha
+- FAB + granate (fijo bottom-20 right-5) → NewTaskSheet con: título, notas, date picker, chips prioridad Baja/Media/Alta
+- Botón "📅 Exportar" en header → ical-generator default import → ICS con tareas de today+week+soon, excluye auto_agua/auto_comida, descarga kronotiempo_semana.ics
+- ical-generator v10 API: import ical from 'ical-generator'; cal = ical({name}); cal.createEvent({start,end,summary,description}); cal.toString()
+- SQL pendiente: tabla tasks (id, owner_id, title, description, due_date, status, origin, animal_id, priority, completed_at, created_at)
+- SQL pendiente: tabla daily_notes (id, owner_id, date, content, updated_at) + UNIQUE(owner_id, date)
 
 ## Notas sesión 3
 - Hooks añadidos a useReproduction.ts: useShoeingRecords, useCreateShoeingRecord, useHealthEpisodes, useCreateHealthEpisode, useUpdateHealthEpisode, useVaccines, useCreateVaccine, useAnimalDocs, useCreateAnimalDoc, useDeleteAnimalDoc, createAutoTask
@@ -164,7 +176,6 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - El campo "vendedor" de ClientTagType no se implementa (requeriría join inverso desde animals.sold_client_id → fácil de añadir en sesión futura)
 
 ## Sesiones pendientes
-- Sesión 6: Agenda completo
 - Sesión 7: QA, PWA icons, test iPhone real
 
 ## Archivos clave a leer para entender el proyecto
