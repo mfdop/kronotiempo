@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAnimals } from '../../hooks/useAnimals'
-import { useUpdateAnimal } from '../../hooks/useAnimals'
 import { useAnimalGenetics, useUpsertAnimalGenetics } from '../../hooks/useReproduction'
 import { supabase } from '../../lib/supabase'
 import { LOCI_PRIMARY, LOCI_SECONDARY } from '../../lib/constants'
@@ -81,64 +80,6 @@ function predictCross(g1: AnimalGenetics | null, g2: AnimalGenetics | null) {
   }
 
   return { greyP, alazan, castano, negro, appaloosa }
-}
-
-// ─── CAPA SWATCH SELECTOR ────────────────────────────────────────────────────
-
-// Visual options for coat base
-const BASE_OPTS = [
-  { value: 'negro',   label: 'Negro',   swatch: '#1A1208' },
-  { value: 'castano', label: 'Castaño', swatch: '#6B3A18' },
-  { value: 'alazan',  label: 'Alazán',  swatch: '#C07030' },
-] as const
-
-// Visual options for coat pattern (CSS background for the swatch)
-const PATTERN_OPTS = [
-  { value: 'lisa',      label: 'Lisa',      swatch: '#8B7060' },
-  { value: 'pio',       label: 'Pío',       swatch: 'linear-gradient(135deg,#7B4B28 50%,#F0ECE8 50%)' },
-  { value: 'appaloosa', label: 'Appaloosa', swatch: 'radial-gradient(circle,#F5F0EB 28%,#8B7050 28%)' },
-] as const
-
-// Visual options for face/leg marks
-const MARCA_OPTS = [
-  { key: 'coat_careto'     as const, label: 'Careto',     swatch: 'linear-gradient(180deg,#F5F0E8 45%,#8B7060 45%)' },
-  { key: 'coat_cuatroalbo' as const, label: 'Cuatroalbo', swatch: 'linear-gradient(0deg,#F5F0E8 35%,#8B7060 35%)' },
-]
-
-interface CapaOptProps {
-  selected: boolean
-  onClick: () => void
-  swatch: string    // CSS background value
-  label: string
-}
-
-function CapaOpt({ selected, onClick, swatch, label }: CapaOptProps) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-1.5 py-2 px-1 rounded-xl"
-      style={{
-        border:     `1.5px solid ${selected ? '#7B1F3A' : 'rgba(123,31,58,0.14)'}`,
-        background: selected ? 'rgba(123,31,58,0.07)' : '#fff',
-        transition: 'all 0.12s',
-      }}
-    >
-      <div
-        className="rounded-full shrink-0"
-        style={{
-          width: 28, height: 28,
-          background: swatch,
-          border: '1.5px solid rgba(0,0,0,0.12)',
-        }}
-      />
-      <span
-        className="text-[10px] font-semibold text-center leading-tight"
-        style={{ color: selected ? '#7B1F3A' : '#6B5555' }}
-      >
-        {label}
-      </span>
-    </button>
-  )
 }
 
 // ─── LOCI BADGE ───────────────────────────────────────────────────────────────
@@ -352,7 +293,6 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
   const { user } = useAuth()
   const { data: animals } = useAnimals()
   const { data: genetics } = useAnimalGenetics(animal.id)
-  const updateAnimal = useUpdateAnimal()
   const [editLociOpen, setEditLociOpen] = useState(false)
   const [showSecLoci, setShowSecLoci]   = useState(false)
   const [partnerId, setPartnerId] = useState<string>('')
@@ -371,8 +311,6 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
   const prediction = predictCross(genetics ?? null, partnerGenetics ?? null)
   const isFemale = animal.sex === 'yegua' || animal.sex === 'potra'
   const partners = (animals ?? []).filter(a => a.id !== animal.id && (isFemale ? a.sex === 'semental' : (a.sex === 'yegua' || a.sex === 'potra')))
-
-  const saveCoat = (patch: Partial<Animal>) => updateAnimal.mutate({ id: animal.id, ...patch })
 
   const handleLabUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -408,82 +346,9 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
   const sectionTitle = { color: '#A08888', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }
 
   const gRec = genetics as Record<string, string> | null | undefined
-  const hasSecondary = LOCI_SECONDARY.some(l => gRec?.[l.key])
 
   return (
     <div className="p-4 space-y-4 pb-8">
-
-      {/* ── CAPA FENOTÍPICA ── */}
-      <div className="overflow-hidden" style={cardStyle}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3"
-             style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
-          <p style={sectionTitle}>Capa fenotípica</p>
-        </div>
-
-        <div className="px-3.5 py-3 space-y-4">
-          {/* Color base grid */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#A08888' }}>Color base</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {BASE_OPTS.map(b => (
-                <CapaOpt
-                  key={b.value}
-                  selected={animal.coat_base === b.value}
-                  onClick={() => saveCoat({ coat_base: b.value as Animal['coat_base'] })}
-                  swatch={b.swatch}
-                  label={b.label}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Patrón grid */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#A08888' }}>Patrón</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {PATTERN_OPTS.map(p => (
-                <CapaOpt
-                  key={p.value}
-                  selected={animal.coat_pattern === p.value}
-                  onClick={() => saveCoat({ coat_pattern: p.value as Animal['coat_pattern'] })}
-                  swatch={p.swatch}
-                  label={p.label}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Marcas grid */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#A08888' }}>Marcas</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-              {MARCA_OPTS.map(m => (
-                <CapaOpt
-                  key={m.key}
-                  selected={!!animal[m.key]}
-                  onClick={() => saveCoat({ [m.key]: !animal[m.key] })}
-                  swatch={m.swatch}
-                  label={m.label}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Descripción libre */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#A08888' }}>Descripción libre</p>
-            <textarea
-              defaultValue={animal.coat_description ?? ''}
-              onBlur={e => saveCoat({ coat_description: e.target.value || undefined })}
-              rows={2}
-              placeholder="Ej: Tordo morcillo aclarando, manchas appaloosa en la grupa…"
-              className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none resize-none"
-              style={{ background: '#F7F3EE', border: '1px solid rgba(123,31,58,0.15)', color: '#1C1010' }}
-            />
-          </div>
-        </div>
-      </div>
 
       {/* ── GENOTIPO ── */}
       <div className="overflow-hidden" style={cardStyle}>
@@ -496,13 +361,33 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
           </button>
         </div>
 
-        {!genetics ? (
-          <p className="text-[13px] text-center py-6" style={{ color: '#A08888' }}>
-            Sin datos genéticos · pulsa Editar para añadir
-          </p>
+        {/* Primary loci — always visible */}
+        {LOCI_PRIMARY.map(locus => (
+          <LociRow
+            key={locus.key}
+            locusKey={locus.key}
+            label={locus.label}
+            val={gRec?.[locus.key]}
+          />
+        ))}
+
+        {/* Secondary loci toggle */}
+        {!showSecLoci ? (
+          <button
+            onClick={() => setShowSecLoci(true)}
+            className="w-full px-3.5 py-2.5 text-left text-[12px] font-semibold"
+            style={{ color: '#7B1F3A', borderTop: '1px solid rgba(123,31,58,0.07)' }}
+          >
+            Ver {LOCI_SECONDARY.length} loci adicionales ›
+          </button>
         ) : (
           <>
-            {LOCI_PRIMARY.map(locus => (
+            <div className="px-3.5 py-1.5" style={{ borderTop: '1px solid rgba(123,31,58,0.09)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>
+                Loci adicionales
+              </p>
+            </div>
+            {LOCI_SECONDARY.map(locus => (
               <LociRow
                 key={locus.key}
                 locusKey={locus.key}
@@ -510,41 +395,13 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
                 val={gRec?.[locus.key]}
               />
             ))}
-
-            {/* Secondary loci toggle */}
-            {!showSecLoci ? (
-              <button
-                onClick={() => setShowSecLoci(true)}
-                className="w-full px-3.5 py-2.5 text-left text-[12px] font-semibold"
-                style={{ color: '#7B1F3A', borderTop: '1px solid rgba(123,31,58,0.07)' }}
-              >
-                Ver {LOCI_SECONDARY.length} loci adicionales
-                {hasSecondary ? ' ›' : ' (sin datos) ›'}
-              </button>
-            ) : (
-              <>
-                <div className="px-3.5 py-1.5" style={{ borderTop: '1px solid rgba(123,31,58,0.09)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>
-                    Loci adicionales
-                  </p>
-                </div>
-                {LOCI_SECONDARY.map(locus => (
-                  <LociRow
-                    key={locus.key}
-                    locusKey={locus.key}
-                    label={locus.label}
-                    val={gRec?.[locus.key]}
-                  />
-                ))}
-                <button
-                  onClick={() => setShowSecLoci(false)}
-                  className="w-full px-3.5 py-2 text-left text-[11px] font-semibold"
-                  style={{ color: '#A08888', borderTop: '1px solid rgba(123,31,58,0.07)' }}
-                >
-                  Ocultar ›
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => setShowSecLoci(false)}
+              className="w-full px-3.5 py-2 text-left text-[11px] font-semibold"
+              style={{ color: '#A08888', borderTop: '1px solid rgba(123,31,58,0.07)' }}
+            >
+              Ocultar ›
+            </button>
           </>
         )}
       </div>
