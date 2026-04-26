@@ -31,12 +31,22 @@ export default function LoginPage() {
     >
       {/* Logo */}
       <div className="mb-8 flex flex-col items-center">
-        <img
-          src="/logo.png"
-          alt="Kronotiempo"
-          className="w-40 h-40 object-contain mb-2"
-          style={{ filter: 'brightness(0) invert(1) opacity(0.92)' }}
-        />
+        <div
+          className="mb-3 flex items-center justify-center"
+          style={{
+            width: 100, height: 100,
+            borderRadius: 24,
+            background: '#fff',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
+            overflow: 'hidden',
+          }}
+        >
+          <img
+            src="/logo.png"
+            alt="Kronotiempo"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
         <p className="text-white/50 text-xs tracking-widest uppercase">
           Yeguada El Tiempo
         </p>
