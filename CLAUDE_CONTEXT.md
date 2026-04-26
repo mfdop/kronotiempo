@@ -133,6 +133,14 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ✅ Sesión 4: TabGenética, TabBalance, TabManutención + fix fechas NuevoAnimalPage
 - ✅ Sesión 5: Parcelas completo (lista + detalle) + Clientes completo (lista + detalle)
 - ✅ Sesión 6: Agenda completo
+- ✅ Sesión 7: PWA icons, auto-alertas en app level, lazy loading, verificaciones QA
+
+## Notas sesión 7
+- PWA icons: icon-192.png + icon-512.png generados desde public/logo.png (JPEG 498×501) con Python Pillow → resize LANCZOS → RGBA PNG. Ya referenciados en index.html (apple-touch-icon) y manifest.json.
+- Auto-alertas: componente AutoAlerts() en App.tsx llama useAutoTasks() inmediatamente tras autenticación (no hay que esperar a que el usuario visite /agenda). La ref guard en useAutoTasks evita doble-ejecución.
+- Lazy loading: todas las páginas excepto LoginPage y AnimalesPage se cargan con React.lazy + Suspense(fallback=LoadingScreen). Bundle principal pasó de 728KB → 219KB minified (68KB gzip). Total gzipped ~207KB (< 600KB target).
+- NuevoAnimalPage: verificado que todos los campos opcionales ya envían null/undefined correcto desde Sesión 4 (birth_date||null, alias||undefined, etc.). Sin cambios necesarios.
+- AnimalDetailPage: verificado que getTabs() ya filtra Vientre (yegua/potra), Cubriciones (semental), Manutención (custodia). Sin cambios necesarios.
 
 ## Notas sesión 6
 - useTasks.ts (nuevo): useTasks() (todas las tareas ordenadas por due_date nullsLast), useCreateTask(), useUpdateTask(), useCompleteTask() (sets status+completed_at), useDailyNote(date), useUpsertDailyNote() (upsert onConflict owner_id,date), useAutoTasks() (effect con ref guard: queries pregnancies gestantes ≤14 días, shoeing_records overdue, vaccines overdue → createAutoTask si no existe ya pendiente con mismo origin|animal_id)
@@ -176,7 +184,7 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - El campo "vendedor" de ClientTagType no se implementa (requeriría join inverso desde animals.sold_client_id → fácil de añadir en sesión futura)
 
 ## Sesiones pendientes
-- Sesión 7: QA, PWA icons, test iPhone real
+- (ninguna — proyecto completado)
 
 ## Archivos clave a leer para entender el proyecto
 1. src/types/index.ts — TODAS las entidades TypeScript
