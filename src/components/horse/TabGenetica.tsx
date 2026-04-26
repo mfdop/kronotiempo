@@ -4,7 +4,7 @@ import { useAnimals } from '../../hooks/useAnimals'
 import { useUpdateAnimal } from '../../hooks/useAnimals'
 import { useAnimalGenetics, useUpsertAnimalGenetics } from '../../hooks/useReproduction'
 import { supabase } from '../../lib/supabase'
-import { COAT_BASES, COAT_PATTERNS, LOCI_PRIMARY, LOCI_SECONDARY } from '../../lib/constants'
+import { LOCI_PRIMARY, LOCI_SECONDARY } from '../../lib/constants'
 import { BottomSheet } from '../ui'
 import type { Animal, AnimalGenetics } from '../../types'
 
@@ -81,6 +81,173 @@ function predictCross(g1: AnimalGenetics | null, g2: AnimalGenetics | null) {
   }
 
   return { greyP, alazan, castano, negro, appaloosa }
+}
+
+// ─── CAPA SWATCH SELECTOR ────────────────────────────────────────────────────
+
+// Visual options for coat base
+const BASE_OPTS = [
+  { value: 'negro',   label: 'Negro',   swatch: '#1A1208' },
+  { value: 'castano', label: 'Castaño', swatch: '#6B3A18' },
+  { value: 'alazan',  label: 'Alazán',  swatch: '#C07030' },
+] as const
+
+// Visual options for coat pattern (CSS background for the swatch)
+const PATTERN_OPTS = [
+  { value: 'lisa',      label: 'Lisa',      swatch: '#8B7060' },
+  { value: 'pio',       label: 'Pío',       swatch: 'linear-gradient(135deg,#7B4B28 50%,#F0ECE8 50%)' },
+  { value: 'appaloosa', label: 'Appaloosa', swatch: 'radial-gradient(circle,#F5F0EB 28%,#8B7050 28%)' },
+] as const
+
+// Visual options for face/leg marks
+const MARCA_OPTS = [
+  { key: 'coat_careto'     as const, label: 'Careto',     swatch: 'linear-gradient(180deg,#F5F0E8 45%,#8B7060 45%)' },
+  { key: 'coat_cuatroalbo' as const, label: 'Cuatroalbo', swatch: 'linear-gradient(0deg,#F5F0E8 35%,#8B7060 35%)' },
+]
+
+interface CapaOptProps {
+  selected: boolean
+  onClick: () => void
+  swatch: string    // CSS background value
+  label: string
+}
+
+function CapaOpt({ selected, onClick, swatch, label }: CapaOptProps) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-1.5 py-2 px-1 rounded-xl"
+      style={{
+        border:     `1.5px solid ${selected ? '#7B1F3A' : 'rgba(123,31,58,0.14)'}`,
+        background: selected ? 'rgba(123,31,58,0.07)' : '#fff',
+        transition: 'all 0.12s',
+      }}
+    >
+      <div
+        className="rounded-full shrink-0"
+        style={{
+          width: 28, height: 28,
+          background: swatch,
+          border: '1.5px solid rgba(0,0,0,0.12)',
+        }}
+      />
+      <span
+        className="text-[10px] font-semibold text-center leading-tight"
+        style={{ color: selected ? '#7B1F3A' : '#6B5555' }}
+      >
+        {label}
+      </span>
+    </button>
+  )
+}
+
+// ─── LOCI BADGE ───────────────────────────────────────────────────────────────
+
+type BadgeType = 'dom' | 'het' | 'rec' | 'neu' | 'pur'
+
+const BADGE_STYLE: Record<BadgeType, { bg: string; color: string }> = {
+  dom: { bg: '#EAF3EC', color: '#2E6B3E' },
+  het: { bg: '#FDF3DC', color: '#9C6A00' },
+  rec: { bg: '#FCEAEA', color: '#8C1F1F' },
+  neu: { bg: '#F7F3EE', color: '#A08888' },
+  pur: { bg: '#EDE4F8', color: '#6B25A8' },
+}
+
+const LOCI_INTERP: Record<string, Record<string, { type: BadgeType; text: string }>> = {
+  grey: {
+    'GG': { type: 'dom', text: 'Tordo homocigoto · todos los hijos tordos' },
+    'Gg': { type: 'het', text: 'Tordo heterocigoto · puede dar no tordos' },
+    'gg': { type: 'rec', text: 'No tordo · sin gen gris' },
+  },
+  extension: {
+    'EE': { type: 'dom', text: 'No puede producir alazanes' },
+    'Ee': { type: 'het', text: 'Portador alelo rojo · puede dar alazanes' },
+    'ee': { type: 'rec', text: 'Alazán · sin pigmento negro' },
+  },
+  agouti: {
+    'AA': { type: 'dom', text: 'Restricción a cabos · no da negros uniformes' },
+    'Aa': { type: 'het', text: 'Portador negro uniforme' },
+    'aa': { type: 'rec', text: 'Negro uniforme · sin restricción a cabos' },
+  },
+  cream: {
+    'N/N': { type: 'neu', text: 'Sin dilución cream' },
+    'N/Cr': { type: 'het', text: 'Portador cream · bayo o palomino posible' },
+    'Cr/Cr': { type: 'dom', text: 'Doble cream · isabela / cremello' },
+  },
+  pearl: {
+    'N/N': { type: 'neu', text: 'Sin dilución pearl' },
+    'N/Prl': { type: 'het', text: 'Portador pearl' },
+    'Prl/Prl': { type: 'dom', text: 'Doble pearl · dilución extrema' },
+  },
+  appaloosa: {
+    'N/N': { type: 'neu', text: 'Sin patrón appaloosa' },
+    'N/LP': { type: 'pur', text: 'Portador patrón appaloosa' },
+    'LP/LP': { type: 'pur', text: 'Appaloosa homocigoto · patrón máximo' },
+  },
+  dun: {
+    'N/N': { type: 'neu', text: 'Sin raya de mulo' },
+    'N/D': { type: 'het', text: 'Dun · raya dorsal y rayas en patas' },
+    'D/D': { type: 'dom', text: 'Dun homocigoto' },
+  },
+  silver: {
+    'N/N': { type: 'neu', text: 'Sin efecto plateado' },
+    'N/Z': { type: 'het', text: 'Silver · crines plateadas en negros' },
+    'Z/Z': { type: 'dom', text: 'Silver homocigoto' },
+  },
+  roan: {
+    'N/N': { type: 'neu', text: 'Sin ruano' },
+    'N/Rn': { type: 'het', text: 'Ruano · mezcla de pelos blancos' },
+  },
+  tobiano: {
+    'N/N': { type: 'neu', text: 'Sin patrón tobiano' },
+    'N/TO': { type: 'het', text: 'Tobiano · manchas blancas en cuerpo' },
+    'TO/TO': { type: 'dom', text: 'Tobiano homocigoto' },
+  },
+  overo: {
+    'N/N': { type: 'neu', text: 'Sin patrón overo' },
+    'N/O': { type: 'het', text: 'Overo · manchas irregulares' },
+  },
+  sabino: {
+    'N/N': { type: 'neu', text: 'Sin sabino' },
+    'N/SB1': { type: 'het', text: 'Sabino · marcas blancas extensas' },
+  },
+}
+
+function locusInterp(key: string, val: string | undefined): { type: BadgeType; text: string } {
+  if (!val) return { type: 'neu', text: 'Sin datos' }
+  return LOCI_INTERP[key]?.[val] ?? { type: 'neu', text: val }
+}
+
+function LociRow({ label, val, locusKey }: { label: string; val: string | undefined; locusKey: string }) {
+  const interp = locusInterp(locusKey, val)
+  const bst = BADGE_STYLE[interp.type]
+  return (
+    <div
+      className="flex items-center gap-2.5 px-3.5 py-2.5"
+      style={{ borderTop: '1px solid rgba(123,31,58,0.07)' }}
+    >
+      <span
+        className="text-[11px] font-bold shrink-0"
+        style={{ color: '#1C1010', fontFamily: 'monospace', width: 84 }}
+      >
+        {label}
+      </span>
+      <span
+        className="text-[13px] font-bold shrink-0"
+        style={{ color: val ? '#1C1010' : '#A08888', fontFamily: 'monospace', width: 40 }}
+      >
+        {val ?? '—'}
+      </span>
+      {val && (
+        <span
+          className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-1 min-w-0"
+          style={{ background: bst.bg, color: bst.color }}
+        >
+          {interp.text}
+        </span>
+      )}
+    </div>
+  )
 }
 
 // ─── SUB-COMPONENTS ───────────────────────────────────────────────────────────
@@ -187,6 +354,7 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
   const { data: genetics } = useAnimalGenetics(animal.id)
   const updateAnimal = useUpdateAnimal()
   const [editLociOpen, setEditLociOpen] = useState(false)
+  const [showSecLoci, setShowSecLoci]   = useState(false)
   const [partnerId, setPartnerId] = useState<string>('')
   const { data: partnerGenetics } = useAnimalGenetics(partnerId || undefined)
   const [uploading, setUploading] = useState(false)
@@ -238,100 +406,146 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
 
   const cardStyle = { background: '#fff', border: '1px solid rgba(123,31,58,0.11)', borderRadius: 16 }
   const sectionTitle = { color: '#A08888', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }
-  const chipActive = { background: '#7B1F3A', color: '#fff', border: '1.5px solid #7B1F3A' }
-  const chipInactive = { background: '#F7F3EE', color: '#6B5555', border: '1.5px solid rgba(123,31,58,0.22)' }
+
+  const gRec = genetics as Record<string, string> | null | undefined
+  const hasSecondary = LOCI_SECONDARY.some(l => gRec?.[l.key])
 
   return (
     <div className="p-4 space-y-4 pb-8">
 
-      {/* FENOTIPO */}
-      <div className="p-4 space-y-4" style={cardStyle}>
-        <p style={sectionTitle}>Fenotipo</p>
-
-        <div>
-          <p className="text-[12px] mb-2" style={{ color: '#6B5555' }}>Color base</p>
-          <div className="flex gap-2 flex-wrap">
-            {COAT_BASES.map(b => (
-              <button key={b.value}
-                onClick={() => saveCoat({ coat_base: b.value as Animal['coat_base'] })}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold"
-                style={animal.coat_base === b.value ? chipActive : chipInactive}>
-                <span className="w-3 h-3 rounded-full inline-block" style={{ background: b.color }} />
-                {b.label}
-              </button>
-            ))}
-          </div>
+      {/* ── CAPA FENOTÍPICA ── */}
+      <div className="overflow-hidden" style={cardStyle}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3"
+             style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
+          <p style={sectionTitle}>Capa fenotípica</p>
         </div>
 
-        <div>
-          <p className="text-[12px] mb-2" style={{ color: '#6B5555' }}>Patrón</p>
-          <div className="flex gap-2 flex-wrap">
-            {COAT_PATTERNS.map(p => (
-              <button key={p.value}
-                onClick={() => saveCoat({ coat_pattern: p.value as Animal['coat_pattern'] })}
-                className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
-                style={animal.coat_pattern === p.value ? chipActive : chipInactive}>
-                {p.label}
-              </button>
-            ))}
+        <div className="px-3.5 py-3 space-y-4">
+          {/* Color base grid */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#A08888' }}>Color base</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {BASE_OPTS.map(b => (
+                <CapaOpt
+                  key={b.value}
+                  selected={animal.coat_base === b.value}
+                  onClick={() => saveCoat({ coat_base: b.value as Animal['coat_base'] })}
+                  swatch={b.swatch}
+                  label={b.label}
+                />
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div>
-          <p className="text-[12px] mb-2" style={{ color: '#6B5555' }}>Marcas</p>
-          <div className="flex gap-2">
-            {[
-              { key: 'coat_careto' as const, label: 'Careto' },
-              { key: 'coat_cuatroalbo' as const, label: 'Cuatroalbo' },
-            ].map(m => (
-              <button key={m.key}
-                onClick={() => saveCoat({ [m.key]: !animal[m.key] })}
-                className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
-                style={animal[m.key] ? chipActive : chipInactive}>
-                {m.label}
-              </button>
-            ))}
+          {/* Patrón grid */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#A08888' }}>Patrón</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {PATTERN_OPTS.map(p => (
+                <CapaOpt
+                  key={p.value}
+                  selected={animal.coat_pattern === p.value}
+                  onClick={() => saveCoat({ coat_pattern: p.value as Animal['coat_pattern'] })}
+                  swatch={p.swatch}
+                  label={p.label}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Marcas grid */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#A08888' }}>Marcas</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+              {MARCA_OPTS.map(m => (
+                <CapaOpt
+                  key={m.key}
+                  selected={!!animal[m.key]}
+                  onClick={() => saveCoat({ [m.key]: !animal[m.key] })}
+                  swatch={m.swatch}
+                  label={m.label}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Descripción libre */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#A08888' }}>Descripción libre</p>
+            <textarea
+              defaultValue={animal.coat_description ?? ''}
+              onBlur={e => saveCoat({ coat_description: e.target.value || undefined })}
+              rows={2}
+              placeholder="Ej: Tordo morcillo aclarando, manchas appaloosa en la grupa…"
+              className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none resize-none"
+              style={{ background: '#F7F3EE', border: '1px solid rgba(123,31,58,0.15)', color: '#1C1010' }}
+            />
           </div>
         </div>
       </div>
 
-      {/* GENOTIPO */}
-      <div className="p-4 space-y-3" style={cardStyle}>
-        <div className="flex items-center justify-between">
+      {/* ── GENOTIPO ── */}
+      <div className="overflow-hidden" style={cardStyle}>
+        <div className="flex items-center justify-between px-4 py-3"
+             style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
           <p style={sectionTitle}>Genotipo</p>
-          <button onClick={() => setEditLociOpen(true)} className="text-[12px] font-semibold" style={{ color: '#7B1F3A' }}>Editar ›</button>
+          <button onClick={() => setEditLociOpen(true)}
+                  className="text-[12px] font-semibold" style={{ color: '#7B1F3A' }}>
+            Editar ›
+          </button>
         </div>
 
-        {LOCI_PRIMARY.map(locus => {
-          const val = (genetics as Record<string, string> | null | undefined)?.[locus.key]
-          return (
-            <div key={locus.key} className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
-              <span className="text-[13px]" style={{ color: '#6B5555' }}>{locus.label}</span>
-              <span className="text-[13px] font-bold" style={{ color: val ? '#1C1010' : '#A08888' }}>
-                {val || '—'}
-              </span>
-            </div>
-          )
-        })}
-
-        {LOCI_SECONDARY.some(l => (genetics as Record<string, string> | null | undefined)?.[l.key]) && (
+        {!genetics ? (
+          <p className="text-[13px] text-center py-6" style={{ color: '#A08888' }}>
+            Sin datos genéticos · pulsa Editar para añadir
+          </p>
+        ) : (
           <>
-            <p className="text-[11px] pt-1" style={{ color: '#A08888' }}>Loci adicionales</p>
-            {LOCI_SECONDARY.map(locus => {
-              const val = (genetics as Record<string, string> | null | undefined)?.[locus.key]
-              if (!val) return null
-              return (
-                <div key={locus.key} className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
-                  <span className="text-[13px]" style={{ color: '#6B5555' }}>{locus.label}</span>
-                  <span className="text-[13px] font-bold" style={{ color: '#1C1010' }}>{val}</span>
-                </div>
-              )
-            })}
-          </>
-        )}
+            {LOCI_PRIMARY.map(locus => (
+              <LociRow
+                key={locus.key}
+                locusKey={locus.key}
+                label={locus.label}
+                val={gRec?.[locus.key]}
+              />
+            ))}
 
-        {!genetics && (
-          <p className="text-[13px] text-center py-2" style={{ color: '#A08888' }}>Sin datos genéticos registrados</p>
+            {/* Secondary loci toggle */}
+            {!showSecLoci ? (
+              <button
+                onClick={() => setShowSecLoci(true)}
+                className="w-full px-3.5 py-2.5 text-left text-[12px] font-semibold"
+                style={{ color: '#7B1F3A', borderTop: '1px solid rgba(123,31,58,0.07)' }}
+              >
+                Ver {LOCI_SECONDARY.length} loci adicionales
+                {hasSecondary ? ' ›' : ' (sin datos) ›'}
+              </button>
+            ) : (
+              <>
+                <div className="px-3.5 py-1.5" style={{ borderTop: '1px solid rgba(123,31,58,0.09)' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>
+                    Loci adicionales
+                  </p>
+                </div>
+                {LOCI_SECONDARY.map(locus => (
+                  <LociRow
+                    key={locus.key}
+                    locusKey={locus.key}
+                    label={locus.label}
+                    val={gRec?.[locus.key]}
+                  />
+                ))}
+                <button
+                  onClick={() => setShowSecLoci(false)}
+                  className="w-full px-3.5 py-2 text-left text-[11px] font-semibold"
+                  style={{ color: '#A08888', borderTop: '1px solid rgba(123,31,58,0.07)' }}
+                >
+                  Ocultar ›
+                </button>
+              </>
+            )}
+          </>
         )}
       </div>
 

@@ -121,6 +121,23 @@ export function useMeadowFoodLogs(meadowId: string | undefined) {
 
 // ─── MUTATIONS ────────────────────────────────────────────────────────────────
 
+export function useCreateMeadow() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: Omit<Meadow, 'id' | 'owner_id' | 'created_at'>) => {
+      const { data, error } = await supabase
+        .from('meadows')
+        .insert({ ...values, owner_id: user!.id })
+        .select()
+        .single()
+      if (error) throw error
+      return data as Meadow
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meadows'] }),
+  })
+}
+
 export function useUpdateMeadow() {
   const qc = useQueryClient()
   return useMutation({
