@@ -7,7 +7,9 @@ import AnimalesPage from './pages/AnimalesPage'
 import AnimalDetailPage from './pages/AnimalDetailPage'
 import NuevoAnimalPage from './pages/NuevoAnimalPage'
 import ParcelasPage from './pages/ParcelasPage'
+import ParcelasDetailPage from './pages/ParcelasDetailPage'
 import ClientesPage from './pages/ClientesPage'
+import ClienteDetailPage from './pages/ClienteDetailPage'
 import AgendaPage from './pages/AgendaPage'
 
 const queryClient = new QueryClient({
@@ -41,7 +43,9 @@ export default function App() {
               <Route path="animales/nuevo"    element={<NuevoAnimalPage />} />
               <Route path="animales/:id"      element={<AnimalDetailPage />} />
               <Route path="parcelas"          element={<ParcelasPage />} />
+              <Route path="parcelas/:id"      element={<ParcelasDetailPage />} />
               <Route path="clientes"          element={<ClientesPage />} />
+              <Route path="clientes/:id"      element={<ClienteDetailPage />} />
               <Route path="agenda"            element={<AgendaPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
