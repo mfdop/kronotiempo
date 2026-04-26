@@ -51,7 +51,7 @@ const tabs = [
 
 export default function AppLayout() {
   return (
-    <div className="flex flex-col h-screen max-w-lg mx-auto" style={{ background: '#F7F3EE' }}>
+    <div className="flex flex-col h-[100dvh] max-w-lg mx-auto" style={{ background: '#F7F3EE' }}>
       {/* Main content — scrollable */}
       <main className="flex-1 overflow-hidden">
         <Outlet />
