@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Pregnancy, SemenSale, SemenShipping, PregnancyInterested, PregnancySale, ShoeingRecord, HealthEpisode, Vaccine, AnimalDocument, AnimalGenetics, MaintenanceFee, MaintenanceEntry } from '../types'
+import type { Pregnancy, SemenSale, SemenShipping, PregnancyInterested, PregnancySale, ShoeingRecord, HealthEpisode, Vaccine, AnimalDocument, AnimalGenetics, MaintenanceFee, MaintenanceEntry, Client, ClientSummary, ClientTagType } from '../types'
 
 // ─── PREGNANCIES ─────────────────────────────────────────────
 export function usePregnancies(mareId: string | undefined) {
@@ -543,6 +543,88 @@ export function useUpdateMaintenanceEntry() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['maintenance-entries', data.animal_id] })
     },
+  })
+}
+
+// ─── CLIENT SUMMARIES (for list page) ────────────────────────
+export function useClientSummaries() {
+  return useQuery({
+    queryKey: ['client-summaries'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select(`
+          *,
+          semen_sales(id, agreed_price, deposit_amount, final_amount, payment_status),
+          pregnancy_sales(id, agreed_price, deposit_amount, final_amount, payment_status),
+          pregnancy_interested(id)
+        `)
+        .order('name')
+      if (error) throw error
+
+      type RawSale = { id: string; agreed_price: number; deposit_amount?: number; final_amount?: number; payment_status: string }
+
+      return (data ?? []).map(client => {
+        const semenSales: RawSale[] = (client.semen_sales ?? []) as RawSale[]
+        const pregSales:  RawSale[] = (client.pregnancy_sales ?? []) as RawSale[]
+        const interested: { id: string }[] = (client.pregnancy_interested ?? []) as { id: string }[]
+
+        const tags: ClientTagType[] = []
+        if (semenSales.length > 0) tags.push('cubricion')
+        if (pregSales.length > 0)  tags.push('vientre')
+        if (interested.length > 0) tags.push('interesado')
+
+        const allT = [...semenSales, ...pregSales]
+        const total_operations = allT.length
+        const total_paid    = allT.reduce((s, t) => s + (t.deposit_amount ?? 0) + (t.final_amount ?? 0), 0)
+        const total_pending = allT.reduce((s, t) => {
+          if (t.payment_status === 'completo') return s
+          const paid = (t.deposit_amount ?? 0) + (t.final_amount ?? 0)
+          return s + Math.max(0, t.agreed_price - paid)
+        }, 0)
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { semen_sales: _s, pregnancy_sales: _p, pregnancy_interested: _i, ...clientData } = client
+        return { ...clientData, tags, total_operations, total_paid, total_pending } as ClientSummary
+      })
+    },
+  })
+}
+
+// ─── SINGLE CLIENT ────────────────────────────────────────────
+export function useClientById(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ['client', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('id', clientId)
+        .single()
+      if (error) throw error
+      return data as Client
+    },
+    enabled: !!clientId,
+  })
+}
+
+// ─── CLIENT TRANSACTIONS ──────────────────────────────────────
+export function useClientTransactions(clientId: string | undefined) {
+  return useQuery({
+    queryKey: ['client-transactions', clientId],
+    queryFn: async () => {
+      const [{ data: semSales }, { data: pregSales }, { data: interested }] = await Promise.all([
+        supabase.from('semen_sales').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+        supabase.from('pregnancy_sales').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+        supabase.from('pregnancy_interested').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+      ])
+      return {
+        semSales:   (semSales   ?? []) as SemenSale[],
+        pregSales:  (pregSales  ?? []) as PregnancySale[],
+        interested: (interested ?? []) as PregnancyInterested[],
+      }
+    },
+    enabled: !!clientId,
   })
 }
 
