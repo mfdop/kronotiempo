@@ -615,8 +615,8 @@ export function useClientTransactions(clientId: string | undefined) {
     queryFn: async () => {
       const [{ data: semSales }, { data: pregSales }, { data: interested }] = await Promise.all([
         supabase.from('semen_sales').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
-        supabase.from('pregnancy_sales').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
-        supabase.from('pregnancy_interested').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+        supabase.from('pregnancy_sales').select('*, pregnancies!inner(id, mare_id)').eq('client_id', clientId).order('created_at', { ascending: false }),
+        supabase.from('pregnancy_interested').select('*, pregnancies!inner(id, mare_id)').eq('client_id', clientId).order('created_at', { ascending: false }),
       ])
       return {
         semSales:   (semSales   ?? []) as SemenSale[],

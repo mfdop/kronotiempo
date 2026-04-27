@@ -637,10 +637,10 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
             <div className="flex items-center justify-between px-4 py-2.5"
                  style={{ background: '#FDF3DC', borderBottom: '1px solid rgba(156,106,0,0.15)' }}>
               <span className="text-[11px]" style={{ color: '#9C6A00' }}>
-                Total acordado (pendiente cobro)
+                Pendiente de cobrar
               </span>
               <span className="text-[14px] font-bold" style={{ color: '#9C6A00' }}>
-                {estimado.toLocaleString('es-ES')} €
+                {(estimado - cobrado).toLocaleString('es-ES')} €
               </span>
             </div>
           )}

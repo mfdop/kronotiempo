@@ -218,6 +218,7 @@ function EditLociSheet({
   const upsert = useUpsertAnimalGenetics()
   const [local, setLocal] = useState<Record<string, string>>({})
   const [showSecondary, setShowSecondary] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const allLoci = [...LOCI_PRIMARY, ...LOCI_SECONDARY]
 
   useEffect(() => {
@@ -231,13 +232,17 @@ function EditLociSheet({
   }, [open, genetics])
 
   const handleSave = () => {
+    setSaveError(null)
     const payload: Record<string, string | undefined> = {}
     for (const locus of allLoci) {
       payload[locus.key] = local[locus.key] || undefined
     }
     upsert.mutate(
       { ...(genetics ?? {}), ...payload, animal_id: animalId, id: genetics?.id } as Parameters<typeof upsert.mutate>[0],
-      { onSuccess: onClose }
+      {
+        onSuccess: onClose,
+        onError: (e: unknown) => setSaveError(e instanceof Error ? e.message : 'Error al guardar el genotipo'),
+      }
     )
   }
 
@@ -276,6 +281,11 @@ function EditLociSheet({
           </>
         )}
 
+        {saveError && (
+          <p className="text-[13px] rounded-xl px-4 py-2.5" style={{ background: '#FCEAEA', color: '#8C1F1F' }}>
+            {saveError}
+          </p>
+        )}
         <div className="flex gap-2 pt-3">
           <button onClick={onClose} className="flex-1 py-3 rounded-xl text-[14px] font-semibold" style={{ background: '#F7F3EE', color: '#6B5555' }}>Cancelar</button>
           <button onClick={handleSave} disabled={upsert.isPending} className="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white" style={{ background: '#7B1F3A' }}>
@@ -433,6 +443,19 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
               Ver PDF
             </button>
           )}
+          <button
+            onClick={() => upsert.mutate({
+              ...(genetics ?? {}),
+              animal_id: animal.id,
+              id: genetics?.id,
+              lab_institution: labInstitution || undefined,
+              lab_date: labDate || undefined,
+            } as Parameters<typeof upsert.mutate>[0])}
+            disabled={upsert.isPending}
+            className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
+            style={{ background: '#F7F3EE', color: '#6B5555', border: '1.5px solid rgba(123,31,58,0.22)' }}>
+            {upsert.isPending ? 'Guardando…' : 'Guardar datos'}
+          </button>
           <button onClick={() => fileRef.current?.click()}
             disabled={uploading}
             className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
