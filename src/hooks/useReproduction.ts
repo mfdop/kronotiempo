@@ -628,6 +628,48 @@ export function useClientTransactions(clientId: string | undefined) {
   })
 }
 
+// ─── DELETE HOOKS ─────────────────────────────────────────────
+
+export function useDeletePregnancy(mareId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('pregnancies').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pregnancies', mareId] })
+    },
+  })
+}
+
+export function useDeleteSemenSale(stallionId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('semen_sales').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['semen-sales', stallionId] })
+    },
+  })
+}
+
+export function useDeleteClient() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('clients').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      qc.invalidateQueries({ queryKey: ['client-summaries'] })
+    },
+  })
+}
+
 // ─── AUTO-TASK CREATOR (fire-and-forget) ─────────────────────
 export async function createAutoTask(values: {
   owner_id: string

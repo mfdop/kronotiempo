@@ -9,6 +9,7 @@ import {
   useLogWater,
   useLogFood,
   useUpdateMeadow,
+  useDeleteMeadow,
   computeWaterFoodStatus,
   statusTextColor,
 } from '../hooks/useMeadows'
@@ -16,7 +17,7 @@ import { useAnimalsByMeadow, useAnimals, useUpdateAnimal } from '../hooks/useAni
 import { useMeadows } from '../hooks/useMeadows'
 import { MEADOW_COLORS } from '../lib/constants'
 import {
-  InnerTabs, ConfirmToast, BottomSheet, LoadingScreen, EmptyState,
+  InnerTabs, ConfirmToast, BottomSheet, LoadingScreen, EmptyState, DeleteZone,
 } from '../components/ui'
 import { Azulejo } from '../components/horse/Azulejo'
 import type { Animal, ParcelaStatus } from '../types'
@@ -300,8 +301,9 @@ export default function ParcelasDetailPage() {
   const { data: waterLogs } = useMeadowWaterLogs(id)
   const { data: foodLogs }  = useMeadowFoodLogs(id)
   const { data: animals }   = useAnimalsByMeadow(id)
-  const logWater  = useLogWater()
-  const logFood   = useLogFood()
+  const logWater    = useLogWater()
+  const logFood     = useLogFood()
+  const deleteMeadow = useDeleteMeadow()
 
   const [activeTab, setActiveTab] = useState(0)
   const [confirmW, setConfirmW]   = useState(false)
@@ -414,6 +416,13 @@ export default function ParcelasDetailPage() {
                 }
               </div>
             </div>
+
+            {/* ELIMINAR PARCELA */}
+            <DeleteZone
+              label={meadow.name}
+              onDelete={() => deleteMeadow.mutate(meadow.id, { onSuccess: () => navigate('/parcelas') })}
+              isPending={deleteMeadow.isPending}
+            />
           </div>
         )}
 

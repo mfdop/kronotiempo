@@ -1,10 +1,11 @@
 import { useState, Fragment } from 'react'
 import {
   useSemenSales, useCreateSemenSale, useUpdateSemenSale, useUpsertSemenShipping,
+  useDeleteSemenSale,
 } from '../../hooks/useReproduction'
 import { ClientPicker } from '../ui/ClientPicker'
 import type { ClientBasic } from '../ui/ClientPicker'
-import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton } from '../ui'
+import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton, DeleteZone } from '../ui'
 import type { Animal, SemenSale, SemenShipping, ShippingResult } from '../../types'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -401,10 +402,11 @@ function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChan
 }
 
 // ─── SALE DETAIL SHEET ────────────────────────────────────────
-function SaleDetailSheet({ open, onClose, sale }: {
-  open: boolean; onClose: () => void; sale: SaleWithData
+function SaleDetailSheet({ open, onClose, sale, stallionId }: {
+  open: boolean; onClose: () => void; sale: SaleWithData; stallionId: string
 }) {
-  const updateSale = useUpdateSemenSale()
+  const updateSale   = useUpdateSemenSale()
+  const deleteSale   = useDeleteSemenSale(stallionId)
   const c = sale.clients
   const [localStatus, setLocalStatus]   = useState(sale.payment_status)
   const [localResults, setLocalResults] = useState<Partial<Record<1|2|3, ShippingResult>>>({})
@@ -546,6 +548,15 @@ function SaleDetailSheet({ open, onClose, sale }: {
               )
             })}
           </div>
+        </div>
+
+        {/* ELIMINAR CUBRICIÓN */}
+        <div className="pt-2" style={{ borderTop: '1px solid rgba(123,31,58,0.09)' }}>
+          <DeleteZone
+            label={`venta · ${c.name}`}
+            onDelete={() => deleteSale.mutate(sale.id, { onSuccess: onClose })}
+            isPending={deleteSale.isPending}
+          />
         </div>
       </div>
     </BottomSheet>
@@ -747,7 +758,7 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
 
       {selected && (
         <SaleDetailSheet open={!!selected} onClose={() => setSelected(null)}
-                         sale={selected} />
+                         sale={selected} stallionId={animal.id} />
       )}
     </div>
   )

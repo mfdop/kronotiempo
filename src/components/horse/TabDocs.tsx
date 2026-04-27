@@ -197,6 +197,7 @@ function AddDocSheet({ open, onClose, animalId, userId }: {
 function DocRow({ doc, onDelete }: { doc: AnimalDocument; onDelete: () => void }) {
   const cfg     = DOC_CONFIG[doc.type] ?? DOC_CONFIG.otro
   const [opening, setOpening] = useState(false)
+  const [delStep, setDelStep] = useState(0)
 
   const handleOpen = async () => {
     setOpening(true)
@@ -208,36 +209,53 @@ function DocRow({ doc, onDelete }: { doc: AnimalDocument; onDelete: () => void }
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <button onClick={handleOpen} disabled={opening}
-              className="flex items-center gap-3 flex-1 min-w-0 text-left">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[18px]"
-             style={{ background: cfg.bg }}>
-          {cfg.icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold truncate" style={{ color: opening ? '#A08888' : '#1C1010' }}>
-            {doc.name}
-          </p>
-          <p className="text-[11px] mt-0.5 truncate" style={{ color: '#6B5555' }}>
-            {[
-              doc.issuer,
-              doc.issued_date ? format(parseISO(doc.issued_date), 'd MMM yyyy', { locale: es }) : null,
-              fileSizeLabel(doc.file_size_kb),
-            ].filter(Boolean).join(' · ')}
-          </p>
-        </div>
-      </button>
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: cfg.bg, color: cfg.color }}>
-          {cfg.label}
-        </span>
-        <button onClick={onDelete}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-[14px]"
-                style={{ background: '#FCEAEA', color: '#8C1F1F' }}>
-          ✕
+    <div style={{ borderTop: '1px solid rgba(123,31,58,0.07)' }}>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button onClick={handleOpen} disabled={opening}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[18px]"
+               style={{ background: cfg.bg }}>
+            {cfg.icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold truncate" style={{ color: opening ? '#A08888' : '#1C1010' }}>
+              {doc.name}
+            </p>
+            <p className="text-[11px] mt-0.5 truncate" style={{ color: '#6B5555' }}>
+              {[
+                doc.issuer,
+                doc.issued_date ? format(parseISO(doc.issued_date), 'd MMM yyyy', { locale: es }) : null,
+                fileSizeLabel(doc.file_size_kb),
+              ].filter(Boolean).join(' · ')}
+            </p>
+          </div>
         </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: cfg.bg, color: cfg.color }}>
+            {cfg.label}
+          </span>
+          {delStep === 0 ? (
+            <button onClick={() => setDelStep(1)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[14px]"
+                    style={{ background: '#FCEAEA', color: '#8C1F1F' }}>
+              ✕
+            </button>
+          ) : (
+            <div className="flex gap-1.5 items-center">
+              <button onClick={() => setDelStep(0)}
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg"
+                      style={{ background: '#F7F3EE', color: '#6B5555' }}>
+                No
+              </button>
+              <button onClick={onDelete}
+                      className="text-[11px] font-bold px-2 py-1 rounded-lg text-white"
+                      style={{ background: '#8C1F1F' }}>
+                Sí, borrar
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -256,7 +274,6 @@ export default function TabDocs({ animal }: { animal: Animal }) {
   const filtered = filter === 'todos' ? docs : docs.filter(d => d.type === filter)
 
   const handleDelete = (doc: AnimalDocument) => {
-    if (!confirm(`¿Eliminar "${doc.name}"?`)) return
     deleteDoc.mutate({ id: doc.id, animal_id: doc.animal_id, storage_path: doc.storage_path })
   }
 

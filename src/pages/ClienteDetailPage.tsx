@@ -1,8 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { useClientById, useClientTransactions } from '../hooks/useReproduction'
-import { LoadingScreen, EmptyState } from '../components/ui'
+import { useClientById, useClientTransactions, useDeleteClient } from '../hooks/useReproduction'
+import { LoadingScreen, EmptyState, DeleteZone } from '../components/ui'
 import type { ClientTagType, SemenSale, PregnancySale, PregnancyInterested } from '../types'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -146,6 +146,7 @@ export default function ClienteDetailPage() {
   const navigate   = useNavigate()
   const { data: client, isLoading }    = useClientById(id)
   const { data: transactions }         = useClientTransactions(id)
+  const deleteClient                   = useDeleteClient()
 
   if (isLoading) return <LoadingScreen />
   if (!client)   return (
@@ -286,6 +287,13 @@ export default function ClienteDetailPage() {
             timeline.map(item => <TxRow key={`${item.type}-${item.id}`} item={item} />)
           )}
         </div>
+
+        {/* ELIMINAR CLIENTE */}
+        <DeleteZone
+          label={client.name}
+          onDelete={() => deleteClient.mutate(client.id, { onSuccess: () => navigate('/clientes') })}
+          isPending={deleteClient.isPending}
+        />
       </div>
     </div>
   )

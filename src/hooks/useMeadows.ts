@@ -177,6 +177,17 @@ export function useLogWater() {
   })
 }
 
+export function useDeleteMeadow() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('meadows').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meadows'] }),
+  })
+}
+
 export function useLogFood() {
   const qc = useQueryClient()
   return useMutation({

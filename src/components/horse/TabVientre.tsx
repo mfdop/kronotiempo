@@ -3,11 +3,12 @@ import {
   usePregnancies, useCreatePregnancy, useUpdatePregnancy,
   usePregnancyInterested, useCreatePregnancyInterested,
   usePregnancySale, useUpsertPregnancySale,
+  useDeletePregnancy,
 } from '../../hooks/useReproduction'
 import { useAnimals } from '../../hooks/useAnimals'
 import { ClientPicker } from '../ui/ClientPicker'
 import type { ClientBasic } from '../ui/ClientPicker'
-import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton } from '../ui'
+import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton, DeleteZone } from '../ui'
 import type { Animal, Pregnancy, PregnancyResult, PregnancySale } from '../../types'
 import { format, parseISO, addDays, differenceInDays, differenceInWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -170,6 +171,7 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
   open: boolean; onClose: () => void; pregnancy: Pregnancy
 }) {
   const update                    = useUpdatePregnancy()
+  const deletePregnancy           = useDeletePregnancy(pregnancy.mare_id)
   const { data: interested = [] } = usePregnancyInterested(pregnancy.id)
   const { data: saleRaw }         = usePregnancySale(pregnancy.id)
   const sale                      = saleRaw as SaleWithClient | null
@@ -486,6 +488,15 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
                         onSelect={importAsBuyer} title="Seleccionar comprador definitivo" />
         </div>
       )}
+
+      {/* ELIMINAR MONTA */}
+      <div className="pt-2 mt-2" style={{ borderTop: '1px solid rgba(123,31,58,0.09)' }}>
+        <DeleteZone
+          label={`monta · ${format(parseISO(pregnancy.covered_date), 'd MMM yyyy', { locale: es })}`}
+          onDelete={() => deletePregnancy.mutate(pregnancy.id, { onSuccess: onClose })}
+          isPending={deletePregnancy.isPending}
+        />
+      </div>
     </BottomSheet>
   )
 }
