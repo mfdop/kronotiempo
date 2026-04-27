@@ -513,6 +513,17 @@ export default function TabVientre({ animal }: { animal: Animal }) {
   const [addOpen, setAddOpen]                 = useState(false)
   const [selected, setSelected]               = useState<Pregnancy | null>(null)
 
+  // Map pregnancy_id → sale info for per-row badge
+  // MUST be before conditional return (Rules of Hooks)
+  const saleByPregnancy = useMemo(() => {
+    const map: Record<string, { price: number; status: string }> = {}
+    for (const sale of allSales) {
+      const pregId = (sale as { pregnancies?: { id: string } }).pregnancies?.id
+      if (pregId) map[pregId] = { price: sale.agreed_price, status: sale.payment_status }
+    }
+    return map
+  }, [allSales])
+
   if (isLoading) return <LoadingScreen />
 
   // Stats
@@ -528,16 +539,6 @@ export default function TabVientre({ animal }: { animal: Animal }) {
     const paid = (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0)
     return s + Math.max(0, sale.agreed_price - paid)
   }, 0)
-
-  // Map pregnancy_id → agreed price for per-row badge
-  const saleByPregnancy = useMemo(() => {
-    const map: Record<string, { price: number; status: string }> = {}
-    for (const sale of allSales) {
-      const pregId = (sale as { pregnancies?: { id: string } }).pregnancies?.id
-      if (pregId) map[pregId] = { price: sale.agreed_price, status: sale.payment_status }
-    }
-    return map
-  }, [allSales])
 
   return (
     <div className="p-3 pb-8 space-y-2.5">

@@ -231,19 +231,32 @@ function EditLociSheet({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, genetics])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaveError(null)
-    const payload: Record<string, string | undefined> = {}
+    const locusValues: Record<string, string | undefined> = {}
     for (const locus of allLoci) {
-      payload[locus.key] = local[locus.key] || undefined
+      locusValues[locus.key] = local[locus.key] || undefined
     }
-    upsert.mutate(
-      { ...(genetics ?? {}), ...payload, animal_id: animalId, id: genetics?.id } as Parameters<typeof upsert.mutate>[0],
-      {
-        onSuccess: onClose,
-        onError: (e: unknown) => setSaveError(e instanceof Error ? e.message : 'Error al guardar el genotipo'),
-      }
-    )
+    try {
+      await upsert.mutateAsync({
+        animal_id: animalId,
+        id: genetics?.id,
+        // Preserve existing lab fields — do not spread all of genetics to avoid
+        // accidentally sending system columns (created_at etc.) in the payload
+        lab_pdf_path:    genetics?.lab_pdf_path    ?? undefined,
+        lab_date:        genetics?.lab_date         ?? undefined,
+        lab_institution: genetics?.lab_institution  ?? undefined,
+        notes:           genetics?.notes            ?? undefined,
+        ...locusValues,
+      } as Parameters<typeof upsert.mutateAsync>[0])
+      onClose()
+    } catch (e: unknown) {
+      const msg =
+        typeof e === 'object' && e !== null && 'message' in e
+          ? String((e as { message: unknown }).message)
+          : 'Error al guardar el genotipo'
+      setSaveError(msg)
+    }
   }
 
   const inputStyle = { background: '#F7F3EE', border: '1px solid rgba(123,31,58,0.18)', color: '#1C1010', borderRadius: 10, padding: '8px 12px', fontSize: 13, width: '100%', outline: 'none', appearance: 'none' as const }
@@ -307,7 +320,8 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
   const [showSecLoci, setShowSecLoci]   = useState(false)
   const [partnerId, setPartnerId] = useState<string>('')
   const { data: partnerGenetics } = useAnimalGenetics(partnerId || undefined)
-  const [uploading, setUploading] = useState(false)
+  const [uploading, setUploading]     = useState(false)
+  const [labSaveError, setLabSaveError] = useState<string | null>(null)
   const [labInstitution, setLabInstitution] = useState('')
   const [labDate, setLabDate] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -322,24 +336,61 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
   const isFemale = animal.sex === 'yegua' || animal.sex === 'potra'
   const partners = (animals ?? []).filter(a => a.id !== animal.id && (isFemale ? a.sex === 'semental' : (a.sex === 'yegua' || a.sex === 'potra')))
 
+  // Build a clean genetics payload — only known columns, no system fields
+  const buildLabPayload = (overrides: Record<string, string | undefined | null>) => ({
+    animal_id:       animal.id,
+    id:              genetics?.id,
+    lab_pdf_path:    genetics?.lab_pdf_path    ?? undefined,
+    lab_date:        labDate || undefined,
+    lab_institution: labInstitution || undefined,
+    notes:           genetics?.notes           ?? undefined,
+    // Preserve existing loci
+    grey:      genetics?.grey      ?? undefined,
+    extension: genetics?.extension ?? undefined,
+    agouti:    genetics?.agouti    ?? undefined,
+    cream:     genetics?.cream     ?? undefined,
+    pearl:     genetics?.pearl     ?? undefined,
+    appaloosa: genetics?.appaloosa ?? undefined,
+    dun:       genetics?.dun       ?? undefined,
+    silver:    genetics?.silver    ?? undefined,
+    roan:      genetics?.roan      ?? undefined,
+    tobiano:   genetics?.tobiano   ?? undefined,
+    overo:     genetics?.overo     ?? undefined,
+    sabino:    genetics?.sabino    ?? undefined,
+    ...overrides,
+  })
+
+  const handleLabSave = async () => {
+    setLabSaveError(null)
+    try {
+      await upsert.mutateAsync(buildLabPayload({}) as Parameters<typeof upsert.mutateAsync>[0])
+    } catch (e: unknown) {
+      const msg =
+        typeof e === 'object' && e !== null && 'message' in e
+          ? String((e as { message: unknown }).message)
+          : 'Error al guardar'
+      setLabSaveError(msg)
+    }
+  }
+
   const handleLabUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user) return
     setUploading(true)
+    setLabSaveError(null)
     try {
       const path = `${user.id}/${animal.id}/genetics_${Date.now()}.pdf`
       const { error: upErr } = await supabase.storage.from('genetics-docs').upload(path, file)
       if (upErr) throw upErr
-      upsert.mutate({
-        ...(genetics ?? {}),
-        animal_id: animal.id,
-        id: genetics?.id,
-        lab_pdf_path: path,
-        lab_institution: labInstitution || undefined,
-        lab_date: labDate || undefined,
-      } as Parameters<typeof upsert.mutate>[0])
-    } catch (err) {
-      console.error('[genetics-upload]', err)
+      await upsert.mutateAsync(
+        buildLabPayload({ lab_pdf_path: path }) as Parameters<typeof upsert.mutateAsync>[0]
+      )
+    } catch (err: unknown) {
+      const msg =
+        typeof err === 'object' && err !== null && 'message' in err
+          ? String((err as { message: unknown }).message)
+          : 'Error al subir'
+      setLabSaveError(msg)
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -435,6 +486,11 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
           </div>
         </div>
 
+        {labSaveError && (
+          <p className="text-[12px] rounded-xl px-3 py-2" style={{ background: '#FCEAEA', color: '#8C1F1F' }}>
+            {labSaveError}
+          </p>
+        )}
         <div className="flex gap-2">
           {genetics?.lab_pdf_path && (
             <button onClick={handleViewPdf}
@@ -444,13 +500,7 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
             </button>
           )}
           <button
-            onClick={() => upsert.mutate({
-              ...(genetics ?? {}),
-              animal_id: animal.id,
-              id: genetics?.id,
-              lab_institution: labInstitution || undefined,
-              lab_date: labDate || undefined,
-            } as Parameters<typeof upsert.mutate>[0])}
+            onClick={handleLabSave}
             disabled={upsert.isPending}
             className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
             style={{ background: '#F7F3EE', color: '#6B5555', border: '1.5px solid rgba(123,31,58,0.22)' }}>
