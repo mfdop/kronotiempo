@@ -183,8 +183,83 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - SQL pendiente: tablas meadows, meadow_water_logs, meadow_food_logs deben existir con FK meadow_id. FK client_id en semen_sales, pregnancy_sales, pregnancy_interested
 - El campo "vendedor" de ClientTagType no se implementa (requeriría join inverso desde animals.sold_client_id → fácil de añadir en sesión futura)
 
+## Sesiones completadas (continuación)
+- ✅ Sesión 8: Eliminación de entidades con doble confirmación desde la webapp
+
+## Notas sesión 8
+- ui/index.tsx: componente DeleteZone reutilizable con 2-step (tap → ¿Seguro? → Sí, eliminar). Importa useState.
+- useReproduction.ts: añade useDeletePregnancy(mareId), useDeleteSemenSale(stallionId), useDeleteClient()
+- useMeadows.ts: añade useDeleteMeadow()
+- TabInfo.tsx: useDeleteAnimal + useNavigate → DeleteZone al final → navega a /animales al borrar
+- TabVientre.tsx: useDeletePregnancy en PregnancyDetailSheet → DeleteZone al final del sheet
+- TabCubriciones.tsx: useDeleteSemenSale en SaleDetailSheet (recibe stallionId nuevo prop) → DeleteZone al final
+- TabDocs.tsx: reemplaza confirm() nativo por 2-step inline en DocRow (estado delStep 0/1)
+- ClienteDetailPage.tsx: useDeleteClient → DeleteZone al final de la lista de transacciones → navega a /clientes
+- ParcelasDetailPage.tsx: useDeleteMeadow → DeleteZone al final del tab Info → navega a /parcelas
+
 ## Sesiones pendientes
 - (ninguna — proyecto completado)
+
+## ✅ Sesión 10: Bug fixes (6 bugs)
+
+### Bugs corregidos
+1. **TabGenealogy — abuelos no se guardaban**: `handleSelect` para `sire_gs/sire_gd/dam_gs/dam_gd` usaba solo `extName` (siempre `''` cuando se selecciona un animal de la app). Fix: `selected?.name || extName || undefined`.
+2. **TabCubriciones — "pendiente" mostraba el total**: El valor mostrado era `estimado` (total acordado) en vez de `estimado - cobrado`. Fix: cambiar a `(estimado - cobrado)` y etiquetar como "Pendiente de cobrar".
+3. **TabGenetica — genotipos no se guardaban visiblemente**: 
+   - Añadido error state (`saveError`) en `EditLociSheet` con feedback visible cuando la mutación falla.
+   - Añadido botón "Guardar datos" para los campos de metadatos del laboratorio (`lab_date`, `lab_institution`) que antes solo se guardaban al subir un PDF.
+   - **NOTA**: Si persiste el error, es un problema de RLS en Supabase. Ejecutar el SQL de la sección de deudas técnicas.
+4. **TabDocs — RLS error al subir**: Problema de políticas RLS en Supabase Storage (no en el código). Ver SQL en deudas técnicas.
+5. **ClienteDetailPage — transacciones no eran clickables**: 
+   - `useClientTransactions` actualizado para hacer join con `pregnancies!inner(id, mare_id)` en pregSales e interested.
+   - `TxItem` añadido campo `animalId`.
+   - `TxRow` convertido en `<button>` cuando hay `animalId`, navega a `/animales/:id`.
+6. **TabVientre — resumen financiero y precio por fila**:
+   - Añadido `usePregnancySalesForMare` para obtener todas las ventas de vientre de la yegua.
+   - Card granate en la parte superior con cobrado/pendiente (igual que TabCubriciones).
+   - Cada fila de embarazo muestra un badge de precio si existe una venta vinculada.
+
+### Deuda técnica — SQL pendiente en Supabase
+
+#### RLS para tabla `animal_genetics`
+```sql
+CREATE POLICY "Users manage own genetics" ON animal_genetics
+  FOR ALL USING (
+    auth.uid() = (SELECT owner_id FROM animals WHERE id = animal_id)
+  )
+  WITH CHECK (
+    auth.uid() = (SELECT owner_id FROM animals WHERE id = animal_id)
+  );
+```
+
+#### RLS para bucket `animal-docs` (Storage)
+```sql
+CREATE POLICY "Users can upload their animal docs"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'animal-docs' AND
+  auth.uid()::text = (string_to_array(name, '/'))[1]
+);
+
+CREATE POLICY "Users can read their animal docs"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'animal-docs' AND
+  auth.uid()::text = (string_to_array(name, '/'))[1]
+);
+
+CREATE POLICY "Users can delete their animal docs"
+ON storage.objects FOR DELETE TO authenticated
+USING (
+  bucket_id = 'animal-docs' AND
+  auth.uid()::text = (string_to_array(name, '/'))[1]
+);
+```
+
+#### Columna faltante en animals
+```sql
+ALTER TABLE animals ADD COLUMN IF NOT EXISTS azulejo_spot_ink TEXT DEFAULT '#1A100C';
+```
 
 ## Archivos clave a leer para entender el proyecto
 1. src/types/index.ts — TODAS las entidades TypeScript

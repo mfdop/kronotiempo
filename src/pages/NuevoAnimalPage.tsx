@@ -18,15 +18,17 @@ const SEXES  = [
 const DEFAULT_AZULEJO: {
   azulejo_ink: string
   azulejo_bg: string
+  azulejo_spot_ink: string
   coat_pattern: 'lisa' | 'pio' | 'appaloosa'
   coat_careto: boolean
   coat_cuatroalbo: boolean
 } = {
-  azulejo_ink: '#4A2810',
-  azulejo_bg:  '#F0E4D4',
-  coat_pattern: 'lisa',
-  coat_careto: false,
-  coat_cuatroalbo: false,
+  azulejo_ink:      '#4A2810',
+  azulejo_bg:       '#F0E4D4',
+  azulejo_spot_ink: '#1A100C',
+  coat_pattern:     'lisa',
+  coat_careto:      false,
+  coat_cuatroalbo:  false,
 }
 
 export default function NuevoAnimalPage() {

@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { useUpdateAnimal } from '../../hooks/useAnimals'
+import { useNavigate } from 'react-router-dom'
+import { useUpdateAnimal, useDeleteAnimal } from '../../hooks/useAnimals'
+import { DeleteZone } from '../ui'
 import type { Animal } from '../../types'
 import { format, parseISO, differenceInYears, differenceInMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -60,7 +62,9 @@ function Section({ title, children, action }: { title: string; children: React.R
 }
 
 export default function TabInfo({ animal }: { animal: Animal }) {
+  const navigate = useNavigate()
   const updateAnimal = useUpdateAnimal()
+  const deleteAnimal = useDeleteAnimal()
   const [editing, setEditing] = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState<string | null>(null)
@@ -364,6 +368,15 @@ export default function TabInfo({ animal }: { animal: Animal }) {
                 fontStyle: animal.private_notes ? 'normal' : 'italic', lineHeight: 1.6 }}>
               {animal.private_notes || 'Sin notas'}
             </p>}
+      </div>
+
+      {/* ZONA DE PELIGRO */}
+      <div className="pt-2">
+        <DeleteZone
+          label={animal.name}
+          onDelete={() => deleteAnimal.mutate(animal.id, { onSuccess: () => navigate('/animales') })}
+          isPending={deleteAnimal.isPending}
+        />
       </div>
 
     </div>

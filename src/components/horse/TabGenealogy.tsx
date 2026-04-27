@@ -197,13 +197,13 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
       update.dam_id = selected?.id ?? undefined
       update.dam_external_name = selected ? undefined : (extName || undefined)
     } else if (picker === 'sire_gs') {
-      update.sire_gs_external_name = extName || undefined
+      update.sire_gs_external_name = selected?.name || extName || undefined
     } else if (picker === 'sire_gd') {
-      update.sire_gd_external_name = extName || undefined
+      update.sire_gd_external_name = selected?.name || extName || undefined
     } else if (picker === 'dam_gs') {
-      update.dam_gs_external_name = extName || undefined
+      update.dam_gs_external_name = selected?.name || extName || undefined
     } else if (picker === 'dam_gd') {
-      update.dam_gd_external_name = extName || undefined
+      update.dam_gd_external_name = selected?.name || extName || undefined
     }
 
     updateAnimal.mutate(update as Partial<Animal> & { id: string })

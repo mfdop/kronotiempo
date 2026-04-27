@@ -100,7 +100,7 @@ export function useAnimalsByMeadow(meadowId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('animals')
-        .select('id, name, sex, breed, status, azulejo_ink, azulejo_bg, coat_pattern, coat_careto, coat_cuatroalbo')
+        .select('id, name, sex, breed, status, azulejo_ink, azulejo_bg, azulejo_spot_ink, coat_pattern, coat_careto, coat_cuatroalbo')
         .eq('meadow_id', meadowId)
         .eq('status', 'activo')
         .order('name')

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 // ─── CARD ────────────────────────────────────────────────────────────────────
@@ -409,6 +410,59 @@ interface EmptyStateProps {
   subtitle?: string
   action?: { label: string; onClick: () => void }
 }
+// ─── DELETE ZONE (2-step confirmation) ───────────────────────────────────────
+export function DeleteZone({
+  label,
+  onDelete,
+  isPending = false,
+}: {
+  label: string
+  onDelete: () => void
+  isPending?: boolean
+}) {
+  const [step, setStep] = useState(0)
+
+  if (step === 0) {
+    return (
+      <button
+        onClick={() => setStep(1)}
+        className="w-full py-3.5 rounded-xl text-[14px] font-semibold"
+        style={{ background: '#FCEAEA', color: '#8C1F1F', border: '1px solid rgba(140,31,31,0.18)' }}
+      >
+        🗑 Eliminar {label}
+      </button>
+    )
+  }
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid rgba(140,31,31,0.35)' }}>
+      <div className="px-4 py-3" style={{ background: '#FCEAEA' }}>
+        <p className="text-[13px] font-bold" style={{ color: '#8C1F1F' }}>⚠ ¿Confirmar eliminación?</p>
+        <p className="text-[11px] mt-0.5" style={{ color: '#6B5555' }}>
+          Esta acción no se puede deshacer. Se eliminarán todos los datos asociados.
+        </p>
+      </div>
+      <div className="flex gap-2 p-3" style={{ background: '#fff' }}>
+        <button
+          onClick={() => setStep(0)}
+          className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
+          style={{ background: '#F7F3EE', color: '#6B5555' }}
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={onDelete}
+          disabled={isPending}
+          className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white"
+          style={{ background: '#8C1F1F', opacity: isPending ? 0.6 : 1 }}
+        >
+          {isPending ? 'Eliminando…' : 'Sí, eliminar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function EmptyState({ icon = '🐴', title, subtitle, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">

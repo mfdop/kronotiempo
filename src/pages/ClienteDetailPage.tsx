@@ -1,8 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { useClientById, useClientTransactions } from '../hooks/useReproduction'
-import { LoadingScreen, EmptyState } from '../components/ui'
+import { useClientById, useClientTransactions, useDeleteClient } from '../hooks/useReproduction'
+import { LoadingScreen, EmptyState, DeleteZone } from '../components/ui'
 import type { ClientTagType, SemenSale, PregnancySale, PregnancyInterested } from '../types'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -36,6 +36,7 @@ type TxItem = {
   amountColor: string
   paymentStatus?: string
   date: string
+  animalId?: string  // for navigation
 }
 
 function buildTimeline(
@@ -58,11 +59,13 @@ function buildTimeline(
       amountColor: paid > 0 ? '#2E6B3E' : '#9C6A00',
       paymentStatus: s.payment_status,
       date: s.created_at,
+      animalId: s.stallion_id,
     })
   })
 
   pregSales.forEach(s => {
     const paid = (s.deposit_amount ?? 0) + (s.final_amount ?? 0)
+    const mareId = (s as unknown as { pregnancies?: { mare_id: string } }).pregnancies?.mare_id
     items.push({
       id: s.id,
       type: 'vientre',
@@ -74,10 +77,12 @@ function buildTimeline(
       amountColor: paid > 0 ? '#2E6B3E' : '#9C6A00',
       paymentStatus: s.payment_status,
       date: s.created_at,
+      animalId: mareId,
     })
   })
 
   interested.forEach(i => {
+    const mareId = (i as PregnancyInterested & { pregnancies?: { mare_id: string } }).pregnancies?.mare_id
     items.push({
       id: i.id,
       type: 'interesado',
@@ -87,6 +92,7 @@ function buildTimeline(
       meta: `Registrado ${fmtDate(i.created_at)}`,
       amountColor: '#A08888',
       date: i.created_at,
+      animalId: mareId,
     })
   })
 
@@ -106,13 +112,12 @@ const PAY_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 
 // ─── TX ROW ───────────────────────────────────────────────────────────────────
 
-function TxRow({ item }: { item: TxItem }) {
+function TxRow({ item, onNavigate }: { item: TxItem; onNavigate?: () => void }) {
   const paySt = item.paymentStatus
   const payColor = paySt ? (PAY_STATUS_COLORS[paySt] ?? PAY_STATUS_COLORS.sin_reserva) : null
 
-  return (
-    <div className="flex items-start gap-3 px-3.5 py-3"
-         style={{ borderTop: '1px solid rgba(123,31,58,0.07)' }}>
+  const inner = (
+    <>
       <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[16px] shrink-0"
            style={{ background: item.iconBg }}>
         {item.icon}
@@ -133,8 +138,32 @@ function TxRow({ item }: { item: TxItem }) {
             {PAY_STATUS_LABELS[paySt] ?? paySt}
           </span>
         )}
-        <span className="text-[10px]" style={{ color: '#A08888' }}>{fmtDate(item.date)}</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px]" style={{ color: '#A08888' }}>{fmtDate(item.date)}</span>
+          {onNavigate && (
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#A08888" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          )}
+        </div>
       </div>
+    </>
+  )
+
+  if (onNavigate) {
+    return (
+      <button onClick={onNavigate}
+              className="w-full flex items-start gap-3 px-3.5 py-3 text-left active:bg-[#F5E8EC]"
+              style={{ borderTop: '1px solid rgba(123,31,58,0.07)' }}>
+        {inner}
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex items-start gap-3 px-3.5 py-3"
+         style={{ borderTop: '1px solid rgba(123,31,58,0.07)' }}>
+      {inner}
     </div>
   )
 }
@@ -146,6 +175,7 @@ export default function ClienteDetailPage() {
   const navigate   = useNavigate()
   const { data: client, isLoading }    = useClientById(id)
   const { data: transactions }         = useClientTransactions(id)
+  const deleteClient                   = useDeleteClient()
 
   if (isLoading) return <LoadingScreen />
   if (!client)   return (
@@ -283,9 +313,22 @@ export default function ClienteDetailPage() {
               Sin transacciones registradas
             </p>
           ) : (
-            timeline.map(item => <TxRow key={`${item.type}-${item.id}`} item={item} />)
+            timeline.map(item => (
+              <TxRow
+                key={`${item.type}-${item.id}`}
+                item={item}
+                onNavigate={item.animalId ? () => navigate(`/animales/${item.animalId}`) : undefined}
+              />
+            ))
           )}
         </div>
+
+        {/* ELIMINAR CLIENTE */}
+        <DeleteZone
+          label={client.name}
+          onDelete={() => deleteClient.mutate(client.id, { onSuccess: () => navigate('/clientes') })}
+          isPending={deleteClient.isPending}
+        />
       </div>
     </div>
   )

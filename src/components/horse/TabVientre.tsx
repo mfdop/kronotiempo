@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   usePregnancies, useCreatePregnancy, useUpdatePregnancy,
   usePregnancyInterested, useCreatePregnancyInterested,
   usePregnancySale, useUpsertPregnancySale,
+  useDeletePregnancy, usePregnancySalesForMare,
 } from '../../hooks/useReproduction'
 import { useAnimals } from '../../hooks/useAnimals'
 import { ClientPicker } from '../ui/ClientPicker'
 import type { ClientBasic } from '../ui/ClientPicker'
-import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton } from '../ui'
+import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton, DeleteZone } from '../ui'
 import type { Animal, Pregnancy, PregnancyResult, PregnancySale } from '../../types'
 import { format, parseISO, addDays, differenceInDays, differenceInWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -170,6 +171,7 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
   open: boolean; onClose: () => void; pregnancy: Pregnancy
 }) {
   const update                    = useUpdatePregnancy()
+  const deletePregnancy           = useDeletePregnancy(pregnancy.mare_id)
   const { data: interested = [] } = usePregnancyInterested(pregnancy.id)
   const { data: saleRaw }         = usePregnancySale(pregnancy.id)
   const sale                      = saleRaw as SaleWithClient | null
@@ -486,15 +488,30 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
                         onSelect={importAsBuyer} title="Seleccionar comprador definitivo" />
         </div>
       )}
+
+      {/* ELIMINAR MONTA */}
+      <div className="pt-2 mt-2" style={{ borderTop: '1px solid rgba(123,31,58,0.09)' }}>
+        <DeleteZone
+          label={`monta · ${format(parseISO(pregnancy.covered_date), 'd MMM yyyy', { locale: es })}`}
+          onDelete={() => deletePregnancy.mutate(pregnancy.id, { onSuccess: onClose })}
+          isPending={deletePregnancy.isPending}
+        />
+      </div>
     </BottomSheet>
   )
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────
+function fmtEur(n: number) {
+  return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' €'
 }
 
 // ─── MAIN TAB ─────────────────────────────────────────────────
 export default function TabVientre({ animal }: { animal: Animal }) {
   const { data: pregnancies = [], isLoading } = usePregnancies(animal.id)
-  const [addOpen, setAddOpen]           = useState(false)
-  const [selected, setSelected]         = useState<Pregnancy | null>(null)
+  const { data: allSales = [] }               = usePregnancySalesForMare(animal.id)
+  const [addOpen, setAddOpen]                 = useState(false)
+  const [selected, setSelected]               = useState<Pregnancy | null>(null)
 
   if (isLoading) return <LoadingScreen />
 
@@ -503,8 +520,51 @@ export default function TabVientre({ animal }: { animal: Animal }) {
   const partos  = pregnancies.filter(p => ['cria_viva','gemelar'].includes(p.result)).length
   const pct     = total > 0 ? Math.round((partos / total) * 100) : 0
 
+  // Financial summary from pregnancy sales
+  const cobrado = allSales.reduce((s, sale) => s + (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0), 0)
+  const estimado = allSales.reduce((s, sale) => s + sale.agreed_price, 0)
+  const pendiente = allSales.reduce((s, sale) => {
+    if (sale.payment_status === 'completo') return s
+    const paid = (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0)
+    return s + Math.max(0, sale.agreed_price - paid)
+  }, 0)
+
+  // Map pregnancy_id → agreed price for per-row badge
+  const saleByPregnancy = useMemo(() => {
+    const map: Record<string, { price: number; status: string }> = {}
+    for (const sale of allSales) {
+      const pregId = (sale as { pregnancies?: { id: string } }).pregnancies?.id
+      if (pregId) map[pregId] = { price: sale.agreed_price, status: sale.payment_status }
+    }
+    return map
+  }, [allSales])
+
   return (
     <div className="p-3 pb-8 space-y-2.5">
+
+      {/* FINANCIAL SUMMARY */}
+      {allSales.length > 0 && (
+        <div className="rounded-2xl overflow-hidden"
+             style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+          <div className="px-4 py-4" style={{ background: '#7B1F3A' }}>
+            <p className="text-[11px] font-bold uppercase tracking-wider"
+               style={{ color: 'rgba(255,255,255,0.65)' }}>Cobrado en ventas de vientre</p>
+            <p className="text-[28px] font-bold mt-1" style={{ color: '#fff' }}>
+              {fmtEur(cobrado)}
+            </p>
+            <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              {allSales.length} {allSales.length === 1 ? 'venta' : 'ventas'} · precio total acordado {fmtEur(estimado)}
+            </p>
+          </div>
+          {pendiente > 0 && (
+            <div className="flex items-center justify-between px-4 py-2.5"
+                 style={{ background: '#FDF3DC' }}>
+              <span className="text-[11px]" style={{ color: '#9C6A00' }}>Pendiente de cobrar</span>
+              <span className="text-[14px] font-bold" style={{ color: '#9C6A00' }}>{fmtEur(pendiente)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* STATS */}
       {total > 0 && (
@@ -537,8 +597,9 @@ export default function TabVientre({ animal }: { animal: Animal }) {
           <EmptyState icon="🐎" title="Sin montas registradas"
                       subtitle="Registra la primera monta de esta yegua" />
         ) : pregnancies.map((p, i) => {
-          const rc = RESULT_COLORS[p.result]
+          const rc   = RESULT_COLORS[p.result]
           const days = daysToBirth(p.expected_birth_date)
+          const sale = saleByPregnancy[p.id]
           return (
             <button key={p.id} onClick={() => setSelected(p)}
                     className="w-full flex items-start gap-3 px-4 py-3 text-left active:bg-[#F5E8EC]"
@@ -548,10 +609,19 @@ export default function TabVientre({ animal }: { animal: Animal }) {
                 {p.result === 'gestante' ? '🤰' : ['cria_viva','gemelar'].includes(p.result) ? '✓' : '✗'}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>
                     {p.monta_type === 'ia' ? 'IA' : 'Monta natural'} · {format(parseISO(p.covered_date), 'd MMM yyyy', { locale: es })}
                   </p>
+                  {sale && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{
+                            background: sale.status === 'completo' ? '#EAF3EC' : '#FDF3DC',
+                            color:      sale.status === 'completo' ? '#2E6B3E' : '#9C6A00',
+                          }}>
+                      {fmtEur(sale.price)}
+                    </span>
+                  )}
                 </div>
                 {p.expected_birth_date && p.result === 'gestante' && (
                   <p className="text-[11px] mt-0.5" style={{ color: '#1A4F7A' }}>

@@ -43,6 +43,7 @@ export interface Animal {
   // azulejo customisation
   azulejo_ink?: string
   azulejo_bg?: string
+  azulejo_spot_ink?: string
   // genealogy
   sire_id?: string             // null if external
   sire_external_name?: string
