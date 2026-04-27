@@ -197,6 +197,24 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ClienteDetailPage.tsx: useDeleteClient → DeleteZone al final de la lista de transacciones → navega a /clientes
 - ParcelasDetailPage.tsx: useDeleteMeadow → DeleteZone al final del tab Info → navega a /parcelas
 
+## ✅ Sesión 11: Bugfixes (5 bugs)
+
+### Bugs corregidos
+1. **TabVientre roto (pantalla en blanco)**: `useMemo` se llamaba DESPUÉS del `if (isLoading) return <LoadingScreen />`, violando las Rules of Hooks de React. Fix: mover `saleByPregnancy = useMemo(...)` antes del return condicional.
+2. **Azulejo 4 puntos / caballo demasiado grande**:
+   - Eliminado el `div` "Corner dots" que generaba los 4 puntos centrales.
+   - SVG del caballo reducido de `inset: 0` (100% del azulejo) a `inset: '8%'` (~84%) para que entre bien en azulejos pequeños (52px).
+3. **TabGenetica no guardaba**:
+   - Refactorizado el payload: ya no se hace spread de todo `genetics` (evita enviar campos de sistema como `created_at` que podían causar errores silenciosos en Supabase).
+   - Cambiado a `mutateAsync` + `try/catch` para capturar correctamente errores de `PostgrestError` (que no son `instanceof Error`).
+   - Añadido `labSaveError` state y feedback de error en la sección de laboratorio.
+   - Botón "Guardar datos" y upload de PDF ahora usan `handleLabSave` / `buildLabPayload` centralizados.
+4. **ClienteDetailPage importe incorrecto**: `amount: paid || agreed_price` mostraba la suma de depósitos si había algún pago, en vez del precio total acordado. Fix: `amount: s.agreed_price` siempre.
+5. **ClienteDetailPage navegación al animal en vez de a la transacción**:
+   - Transacciones de cubrición navegan a `/animales/:stallionId?tab=Cubriciones`.
+   - Transacciones de vientre e interesados navegan a `/animales/:mareId?tab=Vientre`.
+   - `AnimalDetailPage` lee `?tab=` del query param con `useSearchParams` + `useEffect` para pre-seleccionar el tab correcto.
+
 ## Sesiones pendientes
 - (ninguna — proyecto completado)
 
