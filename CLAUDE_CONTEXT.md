@@ -183,6 +183,20 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - SQL pendiente: tablas meadows, meadow_water_logs, meadow_food_logs deben existir con FK meadow_id. FK client_id en semen_sales, pregnancy_sales, pregnancy_interested
 - El campo "vendedor" de ClientTagType no se implementa (requeriría join inverso desde animals.sold_client_id → fácil de añadir en sesión futura)
 
+## Sesiones completadas (continuación)
+- ✅ Sesión 8: Eliminación de entidades con doble confirmación desde la webapp
+
+## Notas sesión 8
+- ui/index.tsx: componente DeleteZone reutilizable con 2-step (tap → ¿Seguro? → Sí, eliminar). Importa useState.
+- useReproduction.ts: añade useDeletePregnancy(mareId), useDeleteSemenSale(stallionId), useDeleteClient()
+- useMeadows.ts: añade useDeleteMeadow()
+- TabInfo.tsx: useDeleteAnimal + useNavigate → DeleteZone al final → navega a /animales al borrar
+- TabVientre.tsx: useDeletePregnancy en PregnancyDetailSheet → DeleteZone al final del sheet
+- TabCubriciones.tsx: useDeleteSemenSale en SaleDetailSheet (recibe stallionId nuevo prop) → DeleteZone al final
+- TabDocs.tsx: reemplaza confirm() nativo por 2-step inline en DocRow (estado delStep 0/1)
+- ClienteDetailPage.tsx: useDeleteClient → DeleteZone al final de la lista de transacciones → navega a /clientes
+- ParcelasDetailPage.tsx: useDeleteMeadow → DeleteZone al final del tab Info → navega a /parcelas
+
 ## Sesiones pendientes
 - (ninguna — proyecto completado)
 
