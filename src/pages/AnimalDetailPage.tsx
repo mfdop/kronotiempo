@@ -45,15 +45,17 @@ export default function AnimalDetailPage() {
   const tabs = getTabs(animal)
 
   const handleAzulejoSave = (vals: {
-    azulejo_ink: string; azulejo_bg: string
+    azulejo_ink: string; azulejo_bg: string; azulejo_spot_ink: string
     coat_pattern: string; coat_careto: boolean; coat_cuatroalbo: boolean
   }) => {
     updateAnimal.mutate({
       id: animal.id,
-      azulejo_ink: vals.azulejo_ink,
-      azulejo_bg: vals.azulejo_bg,
-      coat_careto: vals.coat_careto,
-      coat_cuatroalbo: vals.coat_cuatroalbo,
+      azulejo_ink:      vals.azulejo_ink,
+      azulejo_bg:       vals.azulejo_bg,
+      azulejo_spot_ink: vals.azulejo_spot_ink,
+      coat_pattern:     vals.coat_pattern as import('../types').CoatPattern,
+      coat_careto:      vals.coat_careto,
+      coat_cuatroalbo:  vals.coat_cuatroalbo,
     })
   }
 
@@ -125,11 +127,12 @@ export default function AnimalDetailPage() {
         open={customizerOpen}
         onClose={() => setCustomizerOpen(false)}
         values={{
-          azulejo_ink:    animal.azulejo_ink    ?? '#4A2810',
-          azulejo_bg:     animal.azulejo_bg     ?? '#F0E4D4',
-          coat_pattern:   animal.coat_pattern   ?? 'lisa',
-          coat_careto:    animal.coat_careto     ?? false,
-          coat_cuatroalbo: animal.coat_cuatroalbo ?? false,
+          azulejo_ink:      animal.azulejo_ink      ?? '#4A2810',
+          azulejo_bg:       animal.azulejo_bg       ?? '#F0E4D4',
+          azulejo_spot_ink: animal.azulejo_spot_ink ?? '#1A100C',
+          coat_pattern:     animal.coat_pattern     ?? 'lisa',
+          coat_careto:      animal.coat_careto      ?? false,
+          coat_cuatroalbo:  animal.coat_cuatroalbo  ?? false,
         }}
         onChange={handleAzulejoSave}
         animalName={animal.name}
