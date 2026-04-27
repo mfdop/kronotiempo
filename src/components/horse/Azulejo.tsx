@@ -32,7 +32,7 @@ function HorseSVG({
     <svg
       viewBox="0 0 452.070148 495.041434"
       width="100%" height="100%"
-      style={{ position: 'absolute', inset: 0 }}
+      style={{ position: 'absolute', inset: '8%' }}
       preserveAspectRatio="xMidYMid meet"
     >
       <defs>
@@ -143,19 +143,6 @@ export function Azulejo({
         flexShrink: 0,
       }}
     >
-      {/* Corner dots */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3,
-        background: `
-          radial-gradient(circle, rgba(123,31,58,0.5) 1.5px, transparent 1.5px) 5px 5px,
-          radial-gradient(circle, rgba(123,31,58,0.5) 1.5px, transparent 1.5px) calc(100% - 5px) 5px,
-          radial-gradient(circle, rgba(123,31,58,0.5) 1.5px, transparent 1.5px) 5px calc(100% - 5px),
-          radial-gradient(circle, rgba(123,31,58,0.5) 1.5px, transparent 1.5px) calc(100% - 5px) calc(100% - 5px)
-        `,
-        backgroundSize: '100% 100%',
-        backgroundRepeat: 'no-repeat',
-      }} />
-
       <HorseSVG
         ink={ink}
         spotInk={spotInk}

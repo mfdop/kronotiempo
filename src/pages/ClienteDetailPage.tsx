@@ -36,7 +36,8 @@ type TxItem = {
   amountColor: string
   paymentStatus?: string
   date: string
-  animalId?: string  // for navigation
+  animalId?: string   // for navigation
+  animalTab?: string  // which tab to pre-select
 }
 
 function buildTimeline(
@@ -55,11 +56,12 @@ function buildTimeline(
       iconBg: '#E8F0F8',
       title: 'Cubrición',
       meta: s.mare_name ? `Yegua: ${s.mare_name}` : `Año ${s.year}`,
-      amount: paid || s.agreed_price,
-      amountColor: paid > 0 ? '#2E6B3E' : '#9C6A00',
+      amount: s.agreed_price,                                 // always show agreed price
+      amountColor: paid >= s.agreed_price && s.agreed_price > 0 ? '#2E6B3E' : paid > 0 ? '#9C6A00' : '#A08888',
       paymentStatus: s.payment_status,
       date: s.created_at,
       animalId: s.stallion_id,
+      animalTab: 'Cubriciones',
     })
   })
 
@@ -73,11 +75,12 @@ function buildTimeline(
       iconBg: '#EAF3EC',
       title: 'Venta de vientre',
       meta: `Precio acordado: ${fmt(s.agreed_price)}`,
-      amount: paid || s.agreed_price,
-      amountColor: paid > 0 ? '#2E6B3E' : '#9C6A00',
+      amount: s.agreed_price,                                 // always show agreed price
+      amountColor: paid >= s.agreed_price && s.agreed_price > 0 ? '#2E6B3E' : paid > 0 ? '#9C6A00' : '#A08888',
       paymentStatus: s.payment_status,
       date: s.created_at,
       animalId: mareId,
+      animalTab: 'Vientre',
     })
   })
 
@@ -93,6 +96,7 @@ function buildTimeline(
       amountColor: '#A08888',
       date: i.created_at,
       animalId: mareId,
+      animalTab: 'Vientre',
     })
   })
 
@@ -317,7 +321,7 @@ export default function ClienteDetailPage() {
               <TxRow
                 key={`${item.type}-${item.id}`}
                 item={item}
-                onNavigate={item.animalId ? () => navigate(`/animales/${item.animalId}`) : undefined}
+                onNavigate={item.animalId ? () => navigate(`/animales/${item.animalId}${item.animalTab ? `?tab=${encodeURIComponent(item.animalTab)}` : ''}`) : undefined}
               />
             ))
           )}

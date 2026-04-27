@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAnimal } from '../hooks/useAnimals'
 import { Azulejo, AzulejoCustomizer } from '../components/horse/Azulejo'
 import { useUpdateAnimal } from '../hooks/useAnimals'
@@ -31,10 +31,21 @@ function getTabs(animal: Animal): string[] {
 export default function AnimalDetailPage() {
   const { id }      = useParams<{ id: string }>()
   const navigate    = useNavigate()
+  const [searchParams] = useSearchParams()
   const { data: animal, isLoading } = useAnimal(id)
   const updateAnimal = useUpdateAnimal()
   const [activeTab, setActiveTab] = useState(0)
   const [customizerOpen, setCustomizerOpen] = useState(false)
+
+  // Pre-select tab from ?tab= query param (set by ClienteDetailPage navigation)
+  useEffect(() => {
+    if (!animal) return
+    const tabParam = searchParams.get('tab')
+    if (!tabParam) return
+    const tabs = getTabs(animal)
+    const idx = tabs.findIndex(t => t === tabParam)
+    if (idx >= 0) setActiveTab(idx)
+  }, [animal, searchParams])
 
   if (isLoading) return <LoadingScreen />
   if (!animal)   return (
