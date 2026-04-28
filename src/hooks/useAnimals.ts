@@ -75,6 +75,7 @@ export function useUpdateAnimal() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['animals'] })
       qc.invalidateQueries({ queryKey: ['animal', data.id] })
+      qc.invalidateQueries({ queryKey: ['animals-meadow'] })
     },
   })
 }

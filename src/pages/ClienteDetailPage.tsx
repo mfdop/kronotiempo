@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { useClientById, useClientTransactions, useDeleteClient } from '../hooks/useReproduction'
+import { useClientById, useClientTransactions, useDeleteClient, useUpsertClient } from '../hooks/useReproduction'
+import { useAuth } from '../hooks/useAuth'
 import { LoadingScreen, EmptyState, DeleteZone } from '../components/ui'
 import type { ClientTagType, SemenSale, PregnancySale, PregnancyInterested } from '../types'
 
@@ -177,9 +179,55 @@ function TxRow({ item, onNavigate }: { item: TxItem; onNavigate?: () => void }) 
 export default function ClienteDetailPage() {
   const { id }     = useParams<{ id: string }>()
   const navigate   = useNavigate()
+  const { user }                       = useAuth()
   const { data: client, isLoading }    = useClientById(id)
   const { data: transactions }         = useClientTransactions(id)
   const deleteClient                   = useDeleteClient()
+  const upsertClient                   = useUpsertClient()
+
+  // Edit contact form state — hooks must be before conditional returns
+  const [editMode, setEditMode]   = useState(false)
+  const [saving,   setSaving]     = useState(false)
+  const [editErr,  setEditErr]    = useState<string | null>(null)
+  const [editForm, setEditForm]   = useState({
+    name: '', phone: '', instagram: '', city: '', stable_name: '', notes: '',
+  })
+
+  const openEdit = () => {
+    if (!client) return
+    setEditForm({
+      name:        client.name        ?? '',
+      phone:       client.phone       ?? '',
+      instagram:   client.instagram   ?? '',
+      city:        client.city        ?? '',
+      stable_name: client.stable_name ?? '',
+      notes:       client.notes       ?? '',
+    })
+    setEditErr(null)
+    setEditMode(true)
+  }
+
+  const saveEdit = async () => {
+    if (!client || !user) return
+    if (!editForm.name.trim()) { setEditErr('El nombre es obligatorio'); return }
+    setSaving(true); setEditErr(null)
+    try {
+      await upsertClient.mutateAsync({
+        id:          client.id,
+        name:        editForm.name.trim(),
+        phone:       editForm.phone       || undefined,
+        instagram:   editForm.instagram   || undefined,
+        city:        editForm.city        || undefined,
+        stable_name: editForm.stable_name || undefined,
+        notes:       editForm.notes       || undefined,
+        owner_id:    user.id,
+      })
+      setEditMode(false)
+    } catch (e: unknown) {
+      setEditErr(e instanceof Error ? e.message : 'Error al guardar')
+    }
+    setSaving(false)
+  }
 
   if (isLoading) return <LoadingScreen />
   if (!client)   return (
@@ -260,46 +308,114 @@ export default function ClienteDetailPage() {
         {/* Contact card */}
         <div className="rounded-2xl overflow-hidden"
              style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-          <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
+          <div className="flex items-center justify-between px-4 py-3"
+               style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
             <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Contacto</p>
+            {editMode ? (
+              <div className="flex gap-2">
+                <button onClick={() => setEditMode(false)}
+                        className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
+                        style={{ border: '1.5px solid rgba(123,31,58,0.22)', color: '#6B5555' }}>
+                  Cancelar
+                </button>
+                <button onClick={saveEdit} disabled={saving}
+                        className="px-3 py-1.5 rounded-xl text-[12px] font-bold text-white"
+                        style={{ background: '#7B1F3A', opacity: saving ? 0.6 : 1 }}>
+                  {saving ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
+            ) : (
+              <button onClick={openEdit}
+                      className="px-3 py-1.5 rounded-xl text-[12px] font-bold"
+                      style={{ background: '#F5E8EC', color: '#7B1F3A' }}>
+                Editar
+              </button>
+            )}
           </div>
-          {client.phone && (
-            <a href={`tel:${client.phone}`}
-               className="flex items-center justify-between px-4 py-2.5"
-               style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
-              <span className="text-[13px]" style={{ color: '#6B5555' }}>Teléfono</span>
-              <span className="text-[13px] font-semibold" style={{ color: '#7B1F3A' }}>📞 {client.phone}</span>
-            </a>
+
+          {editErr && (
+            <p className="text-[13px] px-4 py-2.5"
+               style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{editErr}</p>
           )}
-          {client.instagram && (
-            <div className="flex items-center justify-between px-4 py-2.5"
-                 style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
-              <span className="text-[13px]" style={{ color: '#6B5555' }}>Instagram</span>
-              <span className="text-[13px] font-semibold" style={{ color: '#833AB4' }}>@{client.instagram}</span>
+
+          {editMode ? (
+            /* ─── EDIT FORM ─── */
+            <div className="p-4 space-y-3">
+              {[
+                { key: 'name',        label: 'Nombre *',  type: 'text'  },
+                { key: 'phone',       label: 'Teléfono',  type: 'tel'   },
+                { key: 'instagram',   label: 'Instagram', type: 'text'  },
+                { key: 'city',        label: 'Ciudad',    type: 'text'  },
+                { key: 'stable_name', label: 'Yeguada',   type: 'text'  },
+              ].map(({ key, label, type }) => (
+                <div key={key}>
+                  <p className="text-[11px] font-bold uppercase tracking-wider mb-1"
+                     style={{ color: '#A08888' }}>{label}</p>
+                  <input
+                    type={type}
+                    value={editForm[key as keyof typeof editForm]}
+                    onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none"
+                    style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }}
+                  />
+                </div>
+              ))}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider mb-1"
+                   style={{ color: '#A08888' }}>Notas</p>
+                <textarea
+                  value={editForm.notes}
+                  onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={2}
+                  className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none resize-none"
+                  style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }}
+                />
+              </div>
             </div>
-          )}
-          {client.city && (
-            <div className="flex items-center justify-between px-4 py-2.5"
-                 style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
-              <span className="text-[13px]" style={{ color: '#6B5555' }}>Ciudad</span>
-              <span className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{client.city}</span>
-            </div>
-          )}
-          {client.stable_name && (
-            <div className="flex items-center justify-between px-4 py-2.5"
-                 style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
-              <span className="text-[13px]" style={{ color: '#6B5555' }}>Yeguada</span>
-              <span className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{client.stable_name}</span>
-            </div>
-          )}
-          {client.notes && (
-            <div className="px-4 py-2.5">
-              <span className="text-[13px]" style={{ color: '#6B5555' }}>Notas: </span>
-              <span className="text-[13px]" style={{ color: '#1C1010' }}>{client.notes}</span>
-            </div>
-          )}
-          {!client.phone && !client.instagram && !client.city && !client.stable_name && !client.notes && (
-            <p className="text-[13px] px-4 py-3 text-center" style={{ color: '#A08888' }}>Sin datos de contacto</p>
+          ) : (
+            /* ─── READ VIEW ─── */
+            <>
+              {client.phone && (
+                <a href={`tel:${client.phone}`}
+                   className="flex items-center justify-between px-4 py-2.5"
+                   style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
+                  <span className="text-[13px]" style={{ color: '#6B5555' }}>Teléfono</span>
+                  <span className="text-[13px] font-semibold" style={{ color: '#7B1F3A' }}>📞 {client.phone}</span>
+                </a>
+              )}
+              {client.instagram && (
+                <div className="flex items-center justify-between px-4 py-2.5"
+                     style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
+                  <span className="text-[13px]" style={{ color: '#6B5555' }}>Instagram</span>
+                  <span className="text-[13px] font-semibold" style={{ color: '#833AB4' }}>@{client.instagram}</span>
+                </div>
+              )}
+              {client.city && (
+                <div className="flex items-center justify-between px-4 py-2.5"
+                     style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
+                  <span className="text-[13px]" style={{ color: '#6B5555' }}>Ciudad</span>
+                  <span className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{client.city}</span>
+                </div>
+              )}
+              {client.stable_name && (
+                <div className="flex items-center justify-between px-4 py-2.5"
+                     style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
+                  <span className="text-[13px]" style={{ color: '#6B5555' }}>Yeguada</span>
+                  <span className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{client.stable_name}</span>
+                </div>
+              )}
+              {client.notes && (
+                <div className="px-4 py-2.5">
+                  <span className="text-[13px]" style={{ color: '#6B5555' }}>Notas: </span>
+                  <span className="text-[13px]" style={{ color: '#1C1010' }}>{client.notes}</span>
+                </div>
+              )}
+              {!client.phone && !client.instagram && !client.city && !client.stable_name && !client.notes && (
+                <p className="text-[13px] px-4 py-3 text-center" style={{ color: '#A08888' }}>
+                  Sin datos de contacto · pulsa Editar para añadir
+                </p>
+              )}
+            </>
           )}
         </div>
 

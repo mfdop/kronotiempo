@@ -370,12 +370,14 @@ export default function ParcelasDetailPage() {
               <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
                 <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Información</p>
               </div>
-              {[
+              {([
                 { label: 'Superficie', value: meadow.surface_ha ? `${meadow.surface_ha} ha` : undefined },
                 { label: 'Ref. catastral', value: meadow.cadastral_ref },
                 { label: 'Estado', value: STATUS_OPTIONS.find(s => s.value === meadow.status)?.label },
+                (waterLogs?.length ?? 0) >= 2 ? { label: 'Media relleno agua', value: `cada ${wSt.average} días` } : null,
+                (foodLogs?.length ?? 0) >= 2  ? { label: 'Media relleno comida', value: `cada ${fSt.average} días` } : null,
                 { label: 'Notas', value: meadow.notes },
-              ].map((row, i) => (
+              ].filter(Boolean) as { label: string; value: string | undefined | null }[]).map((row, i) => (
                 <div key={row.label} className="flex items-start justify-between px-4 py-2.5"
                      style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(123,31,58,0.07)' }}>
                   <span className="text-[13px]" style={{ color: '#6B5555' }}>{row.label}</span>
