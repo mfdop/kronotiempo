@@ -163,6 +163,7 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
   const { data: all = [] } = useAnimals()
   const updateAnimal       = useUpdateAnimal()
   const [picker, setPicker] = useState<PickerTarget | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const find = (id?: string | null) => id ? all.find(a => a.id === id) : undefined
   const sire = find(animal.sire_id)
@@ -180,9 +181,9 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
   const damGSExt  = dam  ? (dam.sire_external_name  ?? undefined) : (animal.dam_gs_external_name  ?? undefined)
   const damGDExt  = dam  ? (dam.dam_external_name   ?? undefined) : (animal.dam_gd_external_name  ?? undefined)
 
-  // Grandparent slots are editable only when the parent is external (no id in app)
-  const sireParentIsExternal = !sire && !!animal.sire_external_name
-  const damParentIsExternal  = !dam  && !!animal.dam_external_name
+  // Grandparent slots are editable whenever the parent is not an in-app animal
+  const sireParentIsExternal = !sire
+  const damParentIsExternal  = !dam
 
   const offspring = all.filter(a => a.sire_id === animal.id || a.dam_id === animal.id)
 
@@ -206,7 +207,10 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
       update.dam_gd_external_name = selected?.name || extName || undefined
     }
 
-    updateAnimal.mutate(update as Partial<Animal> & { id: string })
+    setSaveError(null)
+    updateAnimal.mutate(update as Partial<Animal> & { id: string }, {
+      onError: (e) => setSaveError(e instanceof Error ? e.message : 'Error al guardar'),
+    })
     setPicker(null)
   }
 
@@ -215,6 +219,10 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
       <p className="text-[11px] px-1" style={{ color: '#A08888' }}>
         Pulsa "Añadir" o "Cambiar" para editar · Los abuelos se muestran automáticamente si el padre/madre está en la app
       </p>
+      {saveError && (
+        <p className="text-[13px] rounded-xl px-4 py-2.5"
+           style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{saveError}</p>
+      )}
 
       {/* TREE */}
       <div className="rounded-2xl p-3 space-y-0"

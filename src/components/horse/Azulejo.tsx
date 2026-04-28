@@ -32,7 +32,7 @@ function HorseSVG({
     <svg
       viewBox="0 0 452.070148 495.041434"
       width="100%" height="100%"
-      style={{ position: 'absolute', inset: '8%' }}
+      style={{ position: 'absolute', inset: '8%', overflow: 'visible' }}
       preserveAspectRatio="xMidYMid meet"
     >
       <defs>

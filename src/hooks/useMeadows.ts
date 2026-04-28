@@ -38,7 +38,7 @@ export function computeWaterFoodStatus(
       const diff = differenceInDays(parseISO(sorted[i].logged_at), parseISO(sorted[i - 1].logged_at))
       if (diff > 0) spans.push(diff)
     }
-    if (spans.length > 0) average = Math.round(spans.reduce((a, b) => a + b, 0) / spans.length)
+    if (spans.length > 0) average = Math.round((spans.reduce((a, b) => a + b, 0) / spans.length) * 10) / 10
   }
 
   return { status: getWaterFoodStatus(daysSince, Math.max(average, 1)), daysSince, average }

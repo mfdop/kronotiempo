@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUpdateAnimal, useDeleteAnimal } from '../../hooks/useAnimals'
+import { useMeadow } from '../../hooks/useMeadows'
 import { DeleteZone } from '../ui'
 import type { Animal } from '../../types'
 import { format, parseISO, differenceInYears, differenceInMonths } from 'date-fns'
@@ -65,6 +66,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
   const navigate = useNavigate()
   const updateAnimal = useUpdateAnimal()
   const deleteAnimal = useDeleteAnimal()
+  const { data: meadow } = useMeadow(animal.meadow_id ?? undefined)
   const [editing, setEditing] = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState<string | null>(null)
@@ -258,17 +260,22 @@ export default function TabInfo({ animal }: { animal: Animal }) {
         </div>
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-[13px]" style={{ color: '#6B5555' }}>Pradera actual</span>
-          <button className="text-[12px] font-semibold flex items-center gap-1.5"
-                  style={{ color: '#2E6B3E' }}>
-            <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#2E6B3E' }} />
-            {animal.meadow_id ? 'Asignada' : 'Sin asignar'}
-            <span style={{ color: '#A08888', fontSize: 11 }}>⌄</span>
-          </button>
+          <span className="text-[12px] font-semibold flex items-center gap-1.5"
+                style={{ color: animal.meadow_id ? '#2E6B3E' : '#A08888' }}>
+            {animal.meadow_id && <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#2E6B3E' }} />}
+            {animal.meadow_id ? (meadow?.name ?? '…') : 'Sin asignar'}
+          </span>
         </div>
         <div className="flex items-center justify-between px-4 py-3"
              style={{ borderTop: '1px solid rgba(123,31,58,0.11)' }}>
-          <span className="text-[13px]" style={{ color: '#6B5555' }}>Historial de praderas</span>
-          <span className="text-[13px] font-semibold" style={{ color: '#7B1F3A' }}>Ver ›</span>
+          <span className="text-[13px]" style={{ color: '#6B5555' }}>Ver en parcela</span>
+          {animal.meadow_id ? (
+            <button onClick={() => navigate(`/parcelas/${animal.meadow_id}`)}
+                    className="text-[13px] font-semibold"
+                    style={{ color: '#7B1F3A' }}>Ver ›</button>
+          ) : (
+            <span className="text-[13px]" style={{ color: '#A08888' }}>—</span>
+          )}
         </div>
       </div>
 

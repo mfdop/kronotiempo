@@ -29,12 +29,22 @@ function classifyTasks(tasks: Task[]) {
   const week:      Task[] = []
   const soon:      Task[] = []
   const doneToday: Task[] = []
+  // Deduplicate auto_agua/comida: keep only one task per (origin+title) across all buckets
+  const seenAutoKeys = new Set<string>()
 
   for (const t of tasks) {
     if (t.status === 'completada') {
       if (t.completed_at && t.completed_at.startsWith(TODAY)) doneToday.push(t)
       continue
     }
+
+    // Skip duplicate water/food auto-tasks
+    if (isAutoWater(t)) {
+      const key = `${t.origin}:${t.title}`
+      if (seenAutoKeys.has(key)) continue
+      seenAutoKeys.add(key)
+    }
+
     const d = t.due_date
     if (!d || d < TODAY) { pending.push(t); continue }
     if (d === TODAY)      { today.push(t);   continue }
