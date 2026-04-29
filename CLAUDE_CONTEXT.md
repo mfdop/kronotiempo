@@ -133,14 +133,23 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ✅ Sesión 4: TabGenética, TabBalance, TabManutención + fix fechas NuevoAnimalPage
 - ✅ Sesión 5: Parcelas completo (lista + detalle) + Clientes completo (lista + detalle)
 - ✅ Sesión 6: Agenda completo
-- ✅ Sesión 7: PWA icons, auto-alertas en app level, lazy loading, verificaciones QA
+- ✅ Sesión 12: 8 bugfixes (azulejo legs overflow, parcelas animal list refresh, genealogy grandparent picker, agenda water/food dedup, parcelas media 1 decimal, TabInfo pradera real name, cliente edit inline, TabVientre notas interesados)
+- ✅ Sesión 13: Azulejo pezuñas (T y-offset 631→611) + Historial de praderas popup en TabInfo
+- ✅ Post-sesión: vercel.json SPA rewrite (fix 404 en refresh), PWA icons actualizados (icon-192.png, icon-512.png), logo.png actualizado, seed_demo.sql + seed_demo_purge.sql creados
 
-## Notas sesión 7
-- PWA icons: icon-192.png + icon-512.png generados desde public/logo.png (JPEG 498×501) con Python Pillow → resize LANCZOS → RGBA PNG. Ya referenciados en index.html (apple-touch-icon) y manifest.json.
-- Auto-alertas: componente AutoAlerts() en App.tsx llama useAutoTasks() inmediatamente tras autenticación (no hay que esperar a que el usuario visite /agenda). La ref guard en useAutoTasks evita doble-ejecución.
-- Lazy loading: todas las páginas excepto LoginPage y AnimalesPage se cargan con React.lazy + Suspense(fallback=LoadingScreen). Bundle principal pasó de 728KB → 219KB minified (68KB gzip). Total gzipped ~207KB (< 600KB target).
-- NuevoAnimalPage: verificado que todos los campos opcionales ya envían null/undefined correcto desde Sesión 4 (birth_date||null, alias||undefined, etc.). Sin cambios necesarios.
-- AnimalDetailPage: verificado que getTabs() ya filtra Vientre (yegua/potra), Cubriciones (semental), Manutención (custodia). Sin cambios necesarios.
+## Notas sesión 13
+- Azulejo.tsx: constante T reducida de Y=631 a Y=611 (−20 viewBox units). Todos los paths (cuerpo, clipPaths, manchas, calcetines) comparten el mismo T, por lo que el caballo sube uniformemente sin desalineaciones. SVG mantiene overflow:visible de sesión 12.
+- useMeadows.ts: añadido tipo `MeadowHistoryEntry` y hook `useAnimalMeadowHistory(animalId)` — consulta `animal_meadow_history` con join `meadows(name, icon_emoji)`, ordenado DESC por entered_at.
+- TabInfo.tsx: fila «Historial de praderas» en sección Ubicación. Botón «Ver (N) ›» abre BottomSheet con lista de movimientos. Entrada con left_at=null muestra badge verde «Actual». Retorno envuelto en Fragment `<>` para permitir BottomSheet como sibling.
+
+## Notas sesión 12
+- Azulejo.tsx: `overflow: visible` en el SVG para que las patas (P_BODY y > 495 viewBox) no se recorten. El tile con overflow:hidden actúa de clip natural.
+- TabInfo.tsx: «Pradera actual» muestra nombre real via `useMeadow(animal.meadow_id)`. Botón «Ver ›» navega a `/parcelas/:id`.
+- TabGenealogy.tsx: condición picker abuelos simplificada de `!sire && !!sire_external_name` a `!sire`. Añadido feedback de error en fallo de guardado.
+- useAnimals.ts: `useUpdateAnimal.onSuccess` ahora invalida también `['animals-meadow']` → lista de animales en parcela se refresca al instante.
+- useMeadows.ts: `computeWaterFoodStatus` usa 1 decimal (`Math.round(...*10)/10`). ParcelasDetailPage muestra filas «Media relleno agua» y «Media relleno comida» con >= 2 registros.
+- AgendaPage: `classifyTasks` lleva un `Set` de claves `origin:title` para evitar duplicados de agua/comida por parcela.
+- ClienteDetailPage: botón «Editar» en tarjeta contacto. Formulario inline con nombre, teléfono, Instagram, ciudad, yeguada y notas via `useUpsertClient`.
 
 ## Notas sesión 6
 - useTasks.ts (nuevo): useTasks() (todas las tareas ordenadas por due_date nullsLast), useCreateTask(), useUpdateTask(), useCompleteTask() (sets status+completed_at), useDailyNote(date), useUpsertDailyNote() (upsert onConflict owner_id,date), useAutoTasks() (effect con ref guard: queries pregnancies gestantes ≤14 días, shoeing_records overdue, vaccines overdue → createAutoTask si no existe ya pendiente con mismo origin|animal_id)
@@ -183,101 +192,13 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - SQL pendiente: tablas meadows, meadow_water_logs, meadow_food_logs deben existir con FK meadow_id. FK client_id en semen_sales, pregnancy_sales, pregnancy_interested
 - El campo "vendedor" de ClientTagType no se implementa (requeriría join inverso desde animals.sold_client_id → fácil de añadir en sesión futura)
 
-## Sesiones completadas (continuación)
-- ✅ Sesión 8: Eliminación de entidades con doble confirmación desde la webapp
-
-## Notas sesión 8
-- ui/index.tsx: componente DeleteZone reutilizable con 2-step (tap → ¿Seguro? → Sí, eliminar). Importa useState.
-- useReproduction.ts: añade useDeletePregnancy(mareId), useDeleteSemenSale(stallionId), useDeleteClient()
-- useMeadows.ts: añade useDeleteMeadow()
-- TabInfo.tsx: useDeleteAnimal + useNavigate → DeleteZone al final → navega a /animales al borrar
-- TabVientre.tsx: useDeletePregnancy en PregnancyDetailSheet → DeleteZone al final del sheet
-- TabCubriciones.tsx: useDeleteSemenSale en SaleDetailSheet (recibe stallionId nuevo prop) → DeleteZone al final
-- TabDocs.tsx: reemplaza confirm() nativo por 2-step inline en DocRow (estado delStep 0/1)
-- ClienteDetailPage.tsx: useDeleteClient → DeleteZone al final de la lista de transacciones → navega a /clientes
-- ParcelasDetailPage.tsx: useDeleteMeadow → DeleteZone al final del tab Info → navega a /parcelas
-
-## ✅ Sesión 11: Bugfixes (5 bugs)
-
-### Bugs corregidos
-1. **TabVientre roto (pantalla en blanco)**: `useMemo` se llamaba DESPUÉS del `if (isLoading) return <LoadingScreen />`, violando las Rules of Hooks de React. Fix: mover `saleByPregnancy = useMemo(...)` antes del return condicional.
-2. **Azulejo 4 puntos / caballo demasiado grande**:
-   - Eliminado el `div` "Corner dots" que generaba los 4 puntos centrales.
-   - SVG del caballo reducido de `inset: 0` (100% del azulejo) a `inset: '8%'` (~84%) para que entre bien en azulejos pequeños (52px).
-3. **TabGenetica no guardaba**:
-   - Refactorizado el payload: ya no se hace spread de todo `genetics` (evita enviar campos de sistema como `created_at` que podían causar errores silenciosos en Supabase).
-   - Cambiado a `mutateAsync` + `try/catch` para capturar correctamente errores de `PostgrestError` (que no son `instanceof Error`).
-   - Añadido `labSaveError` state y feedback de error en la sección de laboratorio.
-   - Botón "Guardar datos" y upload de PDF ahora usan `handleLabSave` / `buildLabPayload` centralizados.
-4. **ClienteDetailPage importe incorrecto**: `amount: paid || agreed_price` mostraba la suma de depósitos si había algún pago, en vez del precio total acordado. Fix: `amount: s.agreed_price` siempre.
-5. **ClienteDetailPage navegación al animal en vez de a la transacción**:
-   - Transacciones de cubrición navegan a `/animales/:stallionId?tab=Cubriciones`.
-   - Transacciones de vientre e interesados navegan a `/animales/:mareId?tab=Vientre`.
-   - `AnimalDetailPage` lee `?tab=` del query param con `useSearchParams` + `useEffect` para pre-seleccionar el tab correcto.
+## Estado del deploy
+- **Vercel**: deploy automático desde `main`. `vercel.json` con rewrite SPA activo (fix 404 en refresh).
+- **PWA**: manifest apunta a `icon-192.png` e `icon-512.png`. Para cambiar icono instalado hay que reinstalar la PWA en el móvil.
+- **Datos demo**: `seed_demo.sql` en raíz del proyecto (16 caballos, 4 parcelas, 6 clientes, vientres, cubriciones, herrado, salud, agenda). Purgar con `seed_demo_purge.sql` antes de entregar a producción.
 
 ## Sesiones pendientes
-- (ninguna — proyecto completado)
-
-## ✅ Sesión 10: Bug fixes (6 bugs)
-
-### Bugs corregidos
-1. **TabGenealogy — abuelos no se guardaban**: `handleSelect` para `sire_gs/sire_gd/dam_gs/dam_gd` usaba solo `extName` (siempre `''` cuando se selecciona un animal de la app). Fix: `selected?.name || extName || undefined`.
-2. **TabCubriciones — "pendiente" mostraba el total**: El valor mostrado era `estimado` (total acordado) en vez de `estimado - cobrado`. Fix: cambiar a `(estimado - cobrado)` y etiquetar como "Pendiente de cobrar".
-3. **TabGenetica — genotipos no se guardaban visiblemente**: 
-   - Añadido error state (`saveError`) en `EditLociSheet` con feedback visible cuando la mutación falla.
-   - Añadido botón "Guardar datos" para los campos de metadatos del laboratorio (`lab_date`, `lab_institution`) que antes solo se guardaban al subir un PDF.
-   - **NOTA**: Si persiste el error, es un problema de RLS en Supabase. Ejecutar el SQL de la sección de deudas técnicas.
-4. **TabDocs — RLS error al subir**: Problema de políticas RLS en Supabase Storage (no en el código). Ver SQL en deudas técnicas.
-5. **ClienteDetailPage — transacciones no eran clickables**: 
-   - `useClientTransactions` actualizado para hacer join con `pregnancies!inner(id, mare_id)` en pregSales e interested.
-   - `TxItem` añadido campo `animalId`.
-   - `TxRow` convertido en `<button>` cuando hay `animalId`, navega a `/animales/:id`.
-6. **TabVientre — resumen financiero y precio por fila**:
-   - Añadido `usePregnancySalesForMare` para obtener todas las ventas de vientre de la yegua.
-   - Card granate en la parte superior con cobrado/pendiente (igual que TabCubriciones).
-   - Cada fila de embarazo muestra un badge de precio si existe una venta vinculada.
-
-### Deuda técnica — SQL pendiente en Supabase
-
-#### RLS para tabla `animal_genetics`
-```sql
-CREATE POLICY "Users manage own genetics" ON animal_genetics
-  FOR ALL USING (
-    auth.uid() = (SELECT owner_id FROM animals WHERE id = animal_id)
-  )
-  WITH CHECK (
-    auth.uid() = (SELECT owner_id FROM animals WHERE id = animal_id)
-  );
-```
-
-#### RLS para bucket `animal-docs` (Storage)
-```sql
-CREATE POLICY "Users can upload their animal docs"
-ON storage.objects FOR INSERT TO authenticated
-WITH CHECK (
-  bucket_id = 'animal-docs' AND
-  auth.uid()::text = (string_to_array(name, '/'))[1]
-);
-
-CREATE POLICY "Users can read their animal docs"
-ON storage.objects FOR SELECT TO authenticated
-USING (
-  bucket_id = 'animal-docs' AND
-  auth.uid()::text = (string_to_array(name, '/'))[1]
-);
-
-CREATE POLICY "Users can delete their animal docs"
-ON storage.objects FOR DELETE TO authenticated
-USING (
-  bucket_id = 'animal-docs' AND
-  auth.uid()::text = (string_to_array(name, '/'))[1]
-);
-```
-
-#### Columna faltante en animals
-```sql
-ALTER TABLE animals ADD COLUMN IF NOT EXISTS azulejo_spot_ink TEXT DEFAULT '#1A100C';
-```
+- Sesión 7: QA final, test iPhone real, entrega
 
 ## Archivos clave a leer para entender el proyecto
 1. src/types/index.ts — TODAS las entidades TypeScript
