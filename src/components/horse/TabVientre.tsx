@@ -177,12 +177,80 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
   const sale                      = saleRaw as SaleWithClient | null
   const createInterested          = useCreatePregnancyInterested()
   const upsertSale                = useUpsertPregnancySale()
+  const { data: allAnimals = [] } = useAnimals()
   const [tab, setTab]             = useState<'info' | 'interested' | 'buyer'>('info')
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
   const [buyerPickerOpen,  setBuyerPickerOpen]  = useState(false)
 
   // Optimistic local state for result pills
   const [localResult, setLocalResultState] = useState<PregnancyResult>(pregnancy.result)
+
+  // ── Edit mode (info tab) ───────────────────────────────────
+  const [editMode,  setEditMode]  = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editForm,  setEditForm]  = useState({
+    monta_type:          pregnancy.monta_type,
+    vet_name:            pregnancy.vet_name            ?? '',
+    sire_id:             pregnancy.sire_id             ?? '',
+    sire_external_name:  pregnancy.sire_external_name  ?? '',
+    covered_date:        pregnancy.covered_date,
+    confirmed_date:      pregnancy.confirmed_date      ?? '',
+    expected_birth_date: pregnancy.expected_birth_date ?? '',
+    actual_birth_date:   pregnancy.actual_birth_date   ?? '',
+    notes:               pregnancy.notes               ?? '',
+  })
+
+  // Sync form when pregnancy prop refreshes (after successful update)
+  useEffect(() => {
+    setEditForm({
+      monta_type:          pregnancy.monta_type,
+      vet_name:            pregnancy.vet_name            ?? '',
+      sire_id:             pregnancy.sire_id             ?? '',
+      sire_external_name:  pregnancy.sire_external_name  ?? '',
+      covered_date:        pregnancy.covered_date,
+      confirmed_date:      pregnancy.confirmed_date      ?? '',
+      expected_birth_date: pregnancy.expected_birth_date ?? '',
+      actual_birth_date:   pregnancy.actual_birth_date   ?? '',
+      notes:               pregnancy.notes               ?? '',
+    })
+    setEditMode(false)
+    setEditError(null)
+    setLocalResultState(pregnancy.result)
+  }, [pregnancy.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setField = (k: string, v: string) =>
+    setEditForm(prev => {
+      const next = { ...prev, [k]: v }
+      // Auto-recalculate expected birth date when covered_date changes
+      if (k === 'covered_date' && v) {
+        try { next.expected_birth_date = format(addDays(parseISO(v), PREGNANCY_DAYS), 'yyyy-MM-dd') } catch {}
+      }
+      return next
+    })
+
+  const handleSaveEdit = async () => {
+    if (!editForm.covered_date) { setEditError('La fecha de cubrición es obligatoria'); return }
+    setEditError(null)
+    try {
+      await update.mutateAsync({
+        id:                  pregnancy.id,
+        monta_type:          editForm.monta_type,
+        vet_name:            editForm.monta_type === 'ia' ? (editForm.vet_name || undefined) : undefined,
+        sire_id:             editForm.sire_id || undefined,
+        sire_external_name:  editForm.sire_id ? undefined : (editForm.sire_external_name || undefined),
+        covered_date:        editForm.covered_date,
+        confirmed_date:      editForm.confirmed_date      || undefined,
+        expected_birth_date: editForm.expected_birth_date || undefined,
+        actual_birth_date:   editForm.actual_birth_date   || undefined,
+        notes:               editForm.notes               || undefined,
+      })
+      setEditMode(false)
+    } catch (e: unknown) {
+      setEditError(e instanceof Error ? e.message : 'Error al guardar')
+    }
+  }
+
+  const stallions = allAnimals.filter(a => a.sex === 'semental')
 
   // Two-step add for interested with notes
   const [pendingClient,    setPendingClient]    = useState<ClientBasic | null>(null)
@@ -290,38 +358,160 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
       {/* INFO TAB */}
       {tab === 'info' && (
         <div className="space-y-2.5">
-          {pregnancy.result === 'gestante' && days !== null && (
-            <div className="rounded-xl p-3" style={{ background: days <= 14 ? '#FDF3DC' : '#EAF3EC', border: `1px solid ${days <= 14 ? 'rgba(156,106,0,0.2)' : 'rgba(46,107,62,0.2)'}` }}>
-              <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: days <= 14 ? '#9C6A00' : '#2E6B3E' }}>
-                Parto estimado
-              </p>
-              <p className="text-[18px] font-bold mt-1" style={{ color: '#1C1010' }}>
-                {format(parseISO(pregnancy.expected_birth_date!), 'd MMM yyyy', { locale: es })}
-              </p>
-              <p className="text-[12px] mt-0.5" style={{ color: '#6B5555' }}>
-                {days > 0 ? `en ${days} días · ${differenceInWeeks(parseISO(pregnancy.expected_birth_date!), new Date())} semanas` : days === 0 ? 'Hoy' : `hace ${Math.abs(days)} días`}
-              </p>
+
+          {/* ── VIEW MODE ─────────────────────────────────────── */}
+          {!editMode && (
+            <>
+              {/* Parto estimado banner */}
+              {pregnancy.result === 'gestante' && days !== null && (
+                <div className="rounded-xl p-3" style={{ background: days <= 14 ? '#FDF3DC' : '#EAF3EC', border: `1px solid ${days <= 14 ? 'rgba(156,106,0,0.2)' : 'rgba(46,107,62,0.2)'}` }}>
+                  <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: days <= 14 ? '#9C6A00' : '#2E6B3E' }}>
+                    Parto estimado
+                  </p>
+                  <p className="text-[18px] font-bold mt-1" style={{ color: '#1C1010' }}>
+                    {format(parseISO(pregnancy.expected_birth_date!), 'd MMM yyyy', { locale: es })}
+                  </p>
+                  <p className="text-[12px] mt-0.5" style={{ color: '#6B5555' }}>
+                    {days > 0 ? `en ${days} días · ${differenceInWeeks(parseISO(pregnancy.expected_birth_date!), new Date())} semanas` : days === 0 ? 'Hoy' : `hace ${Math.abs(days)} días`}
+                  </p>
+                </div>
+              )}
+
+              {/* Info card */}
+              <div className="rounded-xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+                {[
+                  ['Tipo de monta', pregnancy.monta_type === 'ia' ? 'Inseminación artificial' : 'Monta natural'],
+                  pregnancy.vet_name ? ['Veterinario', pregnancy.vet_name] : null,
+                  ['Fecha de cubrición', format(parseISO(pregnancy.covered_date), 'd MMM yyyy', { locale: es })],
+                  pregnancy.confirmed_date ? ['Confirmación ecografía', format(parseISO(pregnancy.confirmed_date), 'd MMM yyyy', { locale: es })] : null,
+                  pregnancy.actual_birth_date ? ['Fecha real de parto', format(parseISO(pregnancy.actual_birth_date), 'd MMM yyyy', { locale: es })] : null,
+                  pregnancy.notes ? ['Notas', pregnancy.notes] : null,
+                ].filter(Boolean).map((row, i) => {
+                  const [label, value] = row as [string, string]
+                  return (
+                    <div key={i} className="flex justify-between px-4 py-2.5"
+                         style={{ borderTop: i > 0 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
+                      <span className="text-[13px]" style={{ color: '#6B5555' }}>{label}</span>
+                      <span className="text-[13px] font-semibold text-right max-w-[55%]" style={{ color: '#1C1010' }}>{value}</span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Edit button */}
+              <button onClick={() => setEditMode(true)}
+                      className="w-full py-2.5 rounded-xl text-[13px] font-semibold"
+                      style={{ background: '#F7F3EE', color: '#7B1F3A', border: '1.5px solid rgba(123,31,58,0.22)' }}>
+                ✏️ Editar información
+              </button>
+            </>
+          )}
+
+          {/* ── EDIT MODE ─────────────────────────────────────── */}
+          {editMode && (
+            <div className="space-y-3">
+
+              {/* Tipo de monta */}
+              <Field label="Tipo de monta">
+                <div className="flex gap-2">
+                  {([['natural','Monta natural'],['ia','Inseminación (IA)']] as const).map(([v, l]) => (
+                    <button key={v} onClick={() => setField('monta_type', v)}
+                            className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
+                            style={{
+                              background: editForm.monta_type === v ? '#7B1F3A' : '#F7F3EE',
+                              color:      editForm.monta_type === v ? '#fff'     : '#6B5555',
+                              border: `1.5px solid ${editForm.monta_type === v ? '#7B1F3A' : 'rgba(123,31,58,0.22)'}`,
+                            }}>{l}</button>
+                  ))}
+                </div>
+              </Field>
+
+              {/* Veterinario (solo IA) */}
+              {editForm.monta_type === 'ia' && (
+                <Field label="Veterinario (IA)">
+                  <input value={editForm.vet_name}
+                         onChange={e => setField('vet_name', e.target.value)}
+                         placeholder="Nombre del veterinario..."
+                         className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                         style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+                </Field>
+              )}
+
+              {/* Padre */}
+              <Field label="Padre (semental)">
+                <select value={editForm.sire_id}
+                        onChange={e => setField('sire_id', e.target.value)}
+                        className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none appearance-none"
+                        style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }}>
+                  <option value="">Externo (introducir nombre)</option>
+                  {stallions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </Field>
+
+              {!editForm.sire_id && (
+                <Field label="Nombre del semental externo">
+                  <input value={editForm.sire_external_name}
+                         onChange={e => setField('sire_external_name', e.target.value)}
+                         placeholder="Nombre del semental..."
+                         className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                         style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+                </Field>
+              )}
+
+              {/* Fecha cubrición */}
+              <Field label="Fecha de cubrición *">
+                <input type="date" value={editForm.covered_date}
+                       onChange={e => setField('covered_date', e.target.value)}
+                       className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                       style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+              </Field>
+
+              {/* Confirmación ecografía */}
+              <Field label="Confirmación ecografía" hint="Fecha en que se confirmó la preñez">
+                <input type="date" value={editForm.confirmed_date}
+                       onChange={e => setField('confirmed_date', e.target.value)}
+                       className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                       style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+              </Field>
+
+              {/* Parto estimado */}
+              <Field label="Parto estimado" hint="Se calcula automáticamente (cubrición + 340 días)">
+                <input type="date" value={editForm.expected_birth_date}
+                       onChange={e => setField('expected_birth_date', e.target.value)}
+                       className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                       style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+              </Field>
+
+              {/* Fecha real de parto */}
+              <Field label="Fecha real de parto" hint="Rellenar cuando ocurra el parto">
+                <input type="date" value={editForm.actual_birth_date}
+                       onChange={e => setField('actual_birth_date', e.target.value)}
+                       className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                       style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+              </Field>
+
+              {/* Notas */}
+              <Field label="Notas">
+                <textarea value={editForm.notes}
+                          onChange={e => setField('notes', e.target.value)}
+                          rows={3} placeholder="Observaciones..."
+                          className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none resize-none"
+                          style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+              </Field>
+
+              {editError && (
+                <p className="text-[13px] rounded-xl px-4 py-2.5"
+                   style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{editError}</p>
+              )}
+
+              <GranateButton onClick={handleSaveEdit} disabled={update.isPending} fullWidth>
+                {update.isPending ? 'Guardando...' : 'Guardar cambios'}
+              </GranateButton>
+              <GhostButton onClick={() => { setEditMode(false); setEditError(null) }} fullWidth>
+                Cancelar
+              </GhostButton>
             </div>
           )}
-          <div className="rounded-xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-            {[
-              ['Tipo de monta', pregnancy.monta_type === 'ia' ? 'Inseminación artificial' : 'Monta natural'],
-              pregnancy.vet_name ? ['Veterinario', pregnancy.vet_name] : null,
-              ['Fecha de cubrición', format(parseISO(pregnancy.covered_date), 'd MMM yyyy', { locale: es })],
-              pregnancy.confirmed_date ? ['Confirmación ecografía', format(parseISO(pregnancy.confirmed_date), 'd MMM yyyy', { locale: es })] : null,
-              pregnancy.actual_birth_date ? ['Fecha real de parto', format(parseISO(pregnancy.actual_birth_date), 'd MMM yyyy', { locale: es })] : null,
-              pregnancy.notes ? ['Notas', pregnancy.notes] : null,
-            ].filter(Boolean).map((row, i) => {
-              const [label, value] = row as [string, string]
-              return (
-              <div key={i} className="flex justify-between px-4 py-2.5"
-                   style={{ borderTop: i > 0 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
-                <span className="text-[13px]" style={{ color: '#6B5555' }}>{label}</span>
-                <span className="text-[13px] font-semibold text-right max-w-[55%]" style={{ color: '#1C1010' }}>{value}</span>
-              </div>
-              )
-            })}
-          </div>
         </div>
       )}
 
@@ -512,6 +702,14 @@ export default function TabVientre({ animal }: { animal: Animal }) {
   const { data: allSales = [] }               = usePregnancySalesForMare(animal.id)
   const [addOpen, setAddOpen]                 = useState(false)
   const [selected, setSelected]               = useState<Pregnancy | null>(null)
+
+  // Keep selected in sync after edits (query refetch updates the pregnancy data)
+  useEffect(() => {
+    if (selected) {
+      const updated = pregnancies.find(p => p.id === selected.id)
+      if (updated) setSelected(updated)
+    }
+  }, [pregnancies]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Map pregnancy_id → sale info for per-row badge
   // MUST be before conditional return (Rules of Hooks)
