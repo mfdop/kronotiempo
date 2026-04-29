@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUpdateAnimal, useDeleteAnimal } from '../../hooks/useAnimals'
-import { useMeadow } from '../../hooks/useMeadows'
-import { DeleteZone } from '../ui'
+import { useMeadow, useAnimalMeadowHistory } from '../../hooks/useMeadows'
+import { DeleteZone, BottomSheet } from '../ui'
 import type { Animal } from '../../types'
 import { format, parseISO, differenceInYears, differenceInMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -66,7 +66,9 @@ export default function TabInfo({ animal }: { animal: Animal }) {
   const navigate = useNavigate()
   const updateAnimal = useUpdateAnimal()
   const deleteAnimal = useDeleteAnimal()
-  const { data: meadow } = useMeadow(animal.meadow_id ?? undefined)
+  const { data: meadow }   = useMeadow(animal.meadow_id ?? undefined)
+  const { data: history = [] } = useAnimalMeadowHistory(animal.id)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState<string | null>(null)
@@ -148,6 +150,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
   )
 
   return (
+    <>
     <div className="p-3 pb-8 space-y-3">
 
       {error && (
@@ -277,6 +280,15 @@ export default function TabInfo({ animal }: { animal: Animal }) {
             <span className="text-[13px]" style={{ color: '#A08888' }}>—</span>
           )}
         </div>
+        <div className="flex items-center justify-between px-4 py-3"
+             style={{ borderTop: '1px solid rgba(123,31,58,0.11)' }}>
+          <span className="text-[13px]" style={{ color: '#6B5555' }}>Historial de praderas</span>
+          <button onClick={() => setHistoryOpen(true)}
+                  className="text-[13px] font-semibold"
+                  style={{ color: '#7B1F3A' }}>
+            {history.length > 0 ? `Ver (${history.length}) ›` : 'Ver ›'}
+          </button>
+        </div>
       </div>
 
       {/* ECONOMÍA */}
@@ -387,5 +399,61 @@ export default function TabInfo({ animal }: { animal: Animal }) {
       </div>
 
     </div>
+
+    {/* HISTORIAL DE PRADERAS — popup */}
+
+    <BottomSheet open={historyOpen} onClose={() => setHistoryOpen(false)} title="Historial de praderas">
+      {history.length === 0 ? (
+        <p className="text-[13px] text-center py-8 italic" style={{ color: '#A08888' }}>
+          Sin movimientos registrados
+        </p>
+      ) : (
+        <div className="space-y-2 pb-4">
+          {history.map((entry, i) => {
+            const meadowName  = entry.meadows?.name        ?? 'Parcela desconocida'
+            const meadowEmoji = entry.meadows?.icon_emoji  ?? '🌿'
+            const enteredFmt  = format(parseISO(entry.entered_at), "d MMM yyyy", { locale: es })
+            const leftFmt     = entry.left_at
+              ? format(parseISO(entry.left_at), "d MMM yyyy", { locale: es })
+              : null
+            const isCurrent   = !entry.left_at && i === 0
+
+            return (
+              <div key={entry.id}
+                   className="flex items-start gap-3 rounded-2xl px-4 py-3"
+                   style={{
+                     background: isCurrent ? '#EAF3EC' : '#fff',
+                     border: `1px solid ${isCurrent ? 'rgba(46,107,62,0.2)' : 'rgba(123,31,58,0.11)'}`,
+                   }}>
+                <span className="text-[20px] shrink-0 mt-0.5">{meadowEmoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[14px] font-semibold" style={{ color: '#1C1010' }}>{meadowName}</p>
+                    {isCurrent && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={{ background: '#2E6B3E', color: '#fff' }}>Actual</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span className="text-[11px]" style={{ color: '#6B5555' }}>
+                      Entrada: <span className="font-semibold">{enteredFmt}</span>
+                    </span>
+                    {leftFmt && (
+                      <>
+                        <span style={{ color: '#A08888', fontSize: 10 }}>→</span>
+                        <span className="text-[11px]" style={{ color: '#6B5555' }}>
+                          Salida: <span className="font-semibold">{leftFmt}</span>
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </BottomSheet>
+    </>
   )
 }
