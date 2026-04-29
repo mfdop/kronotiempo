@@ -85,6 +85,33 @@ export function useMeadow(id: string | undefined) {
   })
 }
 
+// ─── ANIMAL MEADOW HISTORY ────────────────────────────────────────────────────
+
+export type MeadowHistoryEntry = {
+  id: string
+  animal_id: string
+  meadow_id: string
+  entered_at: string
+  left_at: string | null
+  meadows: { name: string; icon_emoji: string | null } | null
+}
+
+export function useAnimalMeadowHistory(animalId: string | undefined) {
+  return useQuery({
+    queryKey: ['animal-meadow-history', animalId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('animal_meadow_history')
+        .select('*, meadows(name, icon_emoji)')
+        .eq('animal_id', animalId)
+        .order('entered_at', { ascending: false })
+      if (error) throw error
+      return data as MeadowHistoryEntry[]
+    },
+    enabled: !!animalId,
+  })
+}
+
 export function useMeadowWaterLogs(meadowId: string | undefined) {
   return useQuery({
     queryKey: ['meadow-water-logs', meadowId],
