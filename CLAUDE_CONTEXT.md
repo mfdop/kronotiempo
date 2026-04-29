@@ -136,6 +136,15 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ✅ Sesión 12: 8 bugfixes (azulejo legs overflow, parcelas animal list refresh, genealogy grandparent picker, agenda water/food dedup, parcelas media 1 decimal, TabInfo pradera real name, cliente edit inline, TabVientre notas interesados)
 - ✅ Sesión 13: Azulejo pezuñas (T y-offset 631→611) + Historial de praderas popup en TabInfo
 - ✅ Post-sesión: vercel.json SPA rewrite (fix 404 en refresh), PWA icons actualizados (icon-192.png, icon-512.png), logo.png actualizado, seed_demo.sql + seed_demo_purge.sql creados
+- ✅ Sesión 14: Edición inline del embarazo en TabVientre (tab Info)
+
+## Notas sesión 14
+- TabVientre.tsx: `PregnancyDetailSheet` — añadido modo edición en el tab Info.
+- Campos editables: tipo de monta (toggle natural/IA), veterinario (solo IA), padre (selector sementales propios + nombre externo), fecha cubrición, confirmación ecografía, parto estimado (auto-recalculado al cambiar cubrición + 340 días, editable manualmente), fecha real de parto, notas.
+- Flujo: vista de solo lectura con botón «✏️ Editar información» → formulario inline → «Guardar cambios» llama `useUpdatePregnancy.mutateAsync()` → éxito cierra el modo edición.
+- Los campos opcionales se envían como `undefined` (no `null`) para respetar el tipo `Partial<Pregnancy>`.
+- `useAnimals` añadido a `PregnancyDetailSheet` para el picker de sementales propios.
+- `useEffect` en `TabVientre` padre mantiene `selected` sincronizado con el array `pregnancies` refrescado tras el guardado, de modo que el sheet muestra los datos actualizados sin cerrarse.
 
 ## Notas sesión 13
 - Azulejo.tsx: constante T reducida de Y=631 a Y=611 (−20 viewBox units). Todos los paths (cuerpo, clipPaths, manchas, calcetines) comparten el mismo T, por lo que el caballo sube uniformemente sin desalineaciones. SVG mantiene overflow:visible de sesión 12.
