@@ -4,12 +4,13 @@ import {
   usePregnancyInterested, useCreatePregnancyInterested,
   usePregnancySale, useUpsertPregnancySale,
   useDeletePregnancy, usePregnancySalesForMare,
+  useAnimalGenetics,
 } from '../../hooks/useReproduction'
 import { useAnimals } from '../../hooks/useAnimals'
 import { ClientPicker } from '../ui/ClientPicker'
 import type { ClientBasic } from '../ui/ClientPicker'
 import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton, DeleteZone } from '../ui'
-import type { Animal, Pregnancy, PregnancyResult, PregnancySale } from '../../types'
+import type { Animal, AnimalGenetics, Pregnancy, PregnancyResult, PregnancySale } from '../../types'
 import { format, parseISO, addDays, differenceInDays, differenceInWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { PREGNANCY_DAYS } from '../../lib/constants'
@@ -44,6 +45,82 @@ function paymentLabel(status: string) {
   if (status === 'completo')   return { label: 'Pago completo',   bg: '#EAF3EC', color: '#2E6B3E' }
   if (status === 'reserva')    return { label: 'Reserva pagada',  bg: '#FDF3DC', color: '#9C6A00' }
   return                              { label: 'Sin reserva',      bg: '#FCEAEA', color: '#8C1F1F' }
+}
+
+// ─── GENETICS MATH (cross prediction) ────────────────────────
+
+function _parseAlleles(locus: string | undefined): string[] {
+  if (!locus) return []
+  if (locus.includes('/')) return locus.split('/')
+  if (locus.length === 2) return [locus[0], locus[1]]
+  return []
+}
+
+function _crossDist(a: string[], b: string[]): Record<string, number> {
+  if (!a.length || !b.length) return {}
+  const counts: Record<string, number> = {}
+  const total = a.length * b.length
+  for (const x of a) {
+    for (const y of b) {
+      const key = [x, y].sort().join('/')
+      counts[key] = (counts[key] ?? 0) + 1 / total
+    }
+  }
+  return counts
+}
+
+function _coatBase(ext: string[], agt: string[]): 'alazan' | 'negro' | 'castano' {
+  const hasE = ext.some(a => a === 'E')
+  const hasA = agt.some(a => a === 'A')
+  if (!hasE) return 'alazan'
+  return hasA ? 'castano' : 'negro'
+}
+
+function predictCross(g1: AnimalGenetics, g2: AnimalGenetics) {
+  const grey1 = _parseAlleles(g1.grey);   const grey2 = _parseAlleles(g2.grey)
+  const ext1  = _parseAlleles(g1.extension); const ext2  = _parseAlleles(g2.extension)
+  const agt1  = _parseAlleles(g1.agouti); const agt2  = _parseAlleles(g2.agouti)
+  const lp1   = _parseAlleles(g1.appaloosa); const lp2   = _parseAlleles(g2.appaloosa)
+
+  let greyP = 0
+  if (grey1.length && grey2.length) {
+    const gd = _crossDist(grey1, grey2)
+    greyP = Object.entries(gd).filter(([k]) => k.includes('G')).reduce((s, [, v]) => s + v, 0)
+  }
+  const nonGreyP = 1 - greyP
+  let alazan = 0, castano = 0, negro = 0
+  if (ext1.length && ext2.length && agt1.length && agt2.length) {
+    const ed = _crossDist(ext1, ext2); const ad = _crossDist(agt1, agt2)
+    for (const [ek, ep] of Object.entries(ed)) {
+      for (const [ak, ap] of Object.entries(ad)) {
+        const base = _coatBase(ek.split('/'), ak.split('/'))
+        const p = ep * ap * nonGreyP
+        if (base === 'alazan') alazan += p
+        else if (base === 'castano') castano += p
+        else negro += p
+      }
+    }
+  }
+  let appaloosa = 0
+  if (lp1.length && lp2.length) {
+    const ld = _crossDist(lp1, lp2)
+    appaloosa = Object.entries(ld).filter(([k]) => k.includes('LP')).reduce((s, [, v]) => s + v, 0)
+  }
+  return { greyP, alazan, castano, negro, appaloosa }
+}
+
+function PctBar({ label, value, color }: { label: string; value: number; color: string }) {
+  const pct = Math.round(value * 100)
+  if (pct === 0) return null
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-16 text-[12px] shrink-0" style={{ color: '#6B5555' }}>{label}</div>
+      <div className="flex-1 rounded-full h-2 overflow-hidden" style={{ background: 'rgba(123,31,58,0.10)' }}>
+        <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <div className="w-8 text-right text-[12px] font-bold" style={{ color: '#1C1010' }}>{pct}%</div>
+    </div>
+  )
 }
 
 // ─── ADD PREGNANCY FORM ───────────────────────────────────────
@@ -178,6 +255,8 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
   const createInterested          = useCreatePregnancyInterested()
   const upsertSale                = useUpsertPregnancySale()
   const { data: allAnimals = [] } = useAnimals()
+  const { data: mareGenetics }    = useAnimalGenetics(pregnancy.mare_id)
+  const { data: sireGenetics }    = useAnimalGenetics(pregnancy.sire_id ?? undefined)
   const [tab, setTab]             = useState<'info' | 'interested' | 'buyer'>('info')
   const [clientPickerOpen, setClientPickerOpen] = useState(false)
   const [buyerPickerOpen,  setBuyerPickerOpen]  = useState(false)
@@ -378,25 +457,78 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
               )}
 
               {/* Info card */}
-              <div className="rounded-xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-                {[
+              {(() => {
+                const sireName = pregnancy.sire_id
+                  ? (allAnimals.find(a => a.id === pregnancy.sire_id)?.name ?? null)
+                  : (pregnancy.sire_external_name ?? null)
+                const rows: [string, string][] = [
                   ['Tipo de monta', pregnancy.monta_type === 'ia' ? 'Inseminación artificial' : 'Monta natural'],
-                  pregnancy.vet_name ? ['Veterinario', pregnancy.vet_name] : null,
+                  ...(pregnancy.vet_name ? [['Veterinario', pregnancy.vet_name] as [string,string]] : []),
                   ['Fecha de cubrición', format(parseISO(pregnancy.covered_date), 'd MMM yyyy', { locale: es })],
-                  pregnancy.confirmed_date ? ['Confirmación ecografía', format(parseISO(pregnancy.confirmed_date), 'd MMM yyyy', { locale: es })] : null,
-                  pregnancy.actual_birth_date ? ['Fecha real de parto', format(parseISO(pregnancy.actual_birth_date), 'd MMM yyyy', { locale: es })] : null,
-                  pregnancy.notes ? ['Notas', pregnancy.notes] : null,
-                ].filter(Boolean).map((row, i) => {
-                  const [label, value] = row as [string, string]
-                  return (
-                    <div key={i} className="flex justify-between px-4 py-2.5"
-                         style={{ borderTop: i > 0 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
-                      <span className="text-[13px]" style={{ color: '#6B5555' }}>{label}</span>
-                      <span className="text-[13px] font-semibold text-right max-w-[55%]" style={{ color: '#1C1010' }}>{value}</span>
-                    </div>
-                  )
-                })}
-              </div>
+                  ...(pregnancy.confirmed_date ? [['Confirmación ecografía', format(parseISO(pregnancy.confirmed_date), 'd MMM yyyy', { locale: es })] as [string,string]] : []),
+                  ...(pregnancy.actual_birth_date ? [['Fecha real de parto', format(parseISO(pregnancy.actual_birth_date), 'd MMM yyyy', { locale: es })] as [string,string]] : []),
+                  ...(sireName ? [['Padre', sireName] as [string,string]] : []),
+                  ...(pregnancy.notes ? [['Notas', pregnancy.notes] as [string,string]] : []),
+                ]
+                return (
+                  <div className="rounded-xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+                    {rows.map(([label, value], i) => (
+                      <div key={i} className="flex justify-between px-4 py-2.5"
+                           style={{ borderTop: i > 0 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
+                        <span className="text-[13px]" style={{ color: '#6B5555' }}>{label}</span>
+                        <span className="text-[13px] font-semibold text-right max-w-[55%]" style={{ color: '#1C1010' }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+
+              {/* Genetic cross prediction */}
+              {(() => {
+                const hasSireId     = !!pregnancy.sire_id
+                const hasMareGen    = !!mareGenetics
+                const hasSireGen    = hasSireId && !!sireGenetics
+                const canPredict    = hasMareGen && hasSireGen
+                const missingGen    = !canPredict && hasSireId   // sire is internal but genetics missing
+                const externalSire  = !hasSireId                 // sire is external → no genetics possible
+
+                if (!hasSireId && !pregnancy.sire_external_name) return null // no father at all
+
+                const prediction = canPredict ? predictCross(mareGenetics as AnimalGenetics, sireGenetics as AnimalGenetics) : null
+
+                return (
+                  <div className="rounded-xl p-3.5 space-y-3"
+                       style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+                    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>
+                      Predicción genética de la cría
+                    </p>
+
+                    {(externalSire || missingGen || !hasMareGen) ? (
+                      <p className="text-[13px]" style={{ color: '#A08888' }}>
+                        Falta información genética de uno de los padres
+                      </p>
+                    ) : prediction ? (
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <p className="text-[12px] font-semibold" style={{ color: '#1C1010' }}>Color base esperado</p>
+                          <PctBar label="Gris"    value={prediction.greyP}   color="#A09898" />
+                          <PctBar label="Castaño" value={prediction.castano} color="#6B3A18" />
+                          <PctBar label="Alazán"  value={prediction.alazan}  color="#C07030" />
+                          <PctBar label="Negro"   value={prediction.negro}   color="#1A1208" />
+                          {prediction.greyP === 0 && prediction.castano === 0 && prediction.alazan === 0 && prediction.negro === 0 && (
+                            <p className="text-[12px]" style={{ color: '#A08888' }}>Faltan loci Extension / Agouti.</p>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[12px] font-semibold" style={{ color: '#1C1010' }}>Patrón Appaloosa</p>
+                          <PctBar label="Con LP"    value={prediction.appaloosa}       color="#7B1F3A" />
+                          <PctBar label="Sin patrón" value={1 - prediction.appaloosa}  color="#D0C4C0" />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })()}
 
               {/* Edit button */}
               <button onClick={() => setEditMode(true)}
