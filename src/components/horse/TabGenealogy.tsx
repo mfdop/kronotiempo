@@ -1,3 +1,4 @@
+import { errMsg } from '../../lib/errors'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAnimals, useUpdateAnimal } from '../../hooks/useAnimals'
@@ -209,7 +210,7 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
 
     setSaveError(null)
     updateAnimal.mutate(update as Partial<Animal> & { id: string }, {
-      onError: (e) => setSaveError(e instanceof Error ? e.message : 'Error al guardar'),
+      onError: (e) => setSaveError(errMsg(e)),
     })
     setPicker(null)
   }

@@ -1,3 +1,4 @@
+import { errMsg } from '../../lib/errors'
 import { useState, useRef } from 'react'
 import { useAnimalDocs, useCreateAnimalDoc, useDeleteAnimalDoc } from '../../hooks/useReproduction'
 import { useAuth } from '../../hooks/useAuth'
@@ -88,7 +89,7 @@ function AddDocSheet({ open, onClose, animalId, userId }: {
       if (fileRef.current) fileRef.current.value = ''
       void ext // suppress unused var warning
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(errMsg(e))
     }
     setSaving(false)
   }

@@ -1,3 +1,4 @@
+import { errMsg } from '../../lib/errors'
 import { useState, Fragment } from 'react'
 import {
   useSemenSales, useCreateSemenSale, useUpdateSemenSale, useUpsertSemenShipping,
@@ -176,7 +177,7 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
       setClient(null)
       setForm({ mare_name: '', agreed_price: '', deposit_amount: '', payment_status: 'sin_reserva', estimated_date: '', notes: '' })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(errMsg(e))
     }
     setSaving(false)
   }

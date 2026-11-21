@@ -1,3 +1,4 @@
+import { errMsg } from '../lib/errors'
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
@@ -224,7 +225,7 @@ export default function ClienteDetailPage() {
       })
       setEditMode(false)
     } catch (e: unknown) {
-      setEditErr(e instanceof Error ? e.message : 'Error al guardar')
+      setEditErr(errMsg(e))
     }
     setSaving(false)
   }

@@ -1,3 +1,4 @@
+import { errMsg } from '../../lib/errors'
 import { useState, useEffect, useMemo } from 'react'
 import {
   usePregnancies, useCreatePregnancy, useUpdatePregnancy,
@@ -164,7 +165,7 @@ function AddPregnancySheet({ open, onClose, mareId, onSaved }: {
       onSaved(); onClose()
       setForm({ monta_type: 'natural', vet_name: '', covered_date: '', confirmed_date: '', sire_id: '', sire_external_name: '', notes: '' })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(errMsg(e))
     }
     setSaving(false)
   }
@@ -325,7 +326,7 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
       })
       setEditMode(false)
     } catch (e: unknown) {
-      setEditError(e instanceof Error ? e.message : 'Error al guardar')
+      setEditError(errMsg(e))
     }
   }
 

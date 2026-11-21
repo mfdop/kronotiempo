@@ -1,3 +1,4 @@
+import { errMsg } from '../../lib/errors'
 import { useState } from 'react'
 import {
   useHealthEpisodes, useCreateHealthEpisode, useUpdateHealthEpisode,
@@ -81,7 +82,7 @@ function AddEpisodeSheet({ open, onClose, animalId }: {
       onClose()
       setForm({ title: '', start_date: '', vet_name: '', treatment: '', notes: '' })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(errMsg(e))
     }
     setSaving(false)
   }
@@ -189,7 +190,7 @@ function AddVaccineSheet({ open, onClose, animalId, animalName, ownerId }: {
       onClose()
       setForm({ type: 'gripe', custom_name: '', date_applied: '', next_date: '', vet_name: '', notes: '' })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(errMsg(e))
     }
     setSaving(false)
   }

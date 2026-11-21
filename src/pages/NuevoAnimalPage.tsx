@@ -1,3 +1,4 @@
+import { errMsg } from '../lib/errors'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreateAnimal } from '../hooks/useAnimals'
@@ -92,7 +93,7 @@ export default function NuevoAnimalPage() {
       const animal = await mutateAsync(payload)
       navigate(`/animales/${animal.id}`, { replace: true })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(errMsg(e))
     }
   }
 

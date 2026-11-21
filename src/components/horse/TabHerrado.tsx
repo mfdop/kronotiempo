@@ -1,3 +1,4 @@
+import { errMsg } from '../../lib/errors'
 import { useState } from 'react'
 import { useShoeingRecords, useCreateShoeingRecord, createAutoTask } from '../../hooks/useReproduction'
 import { useAuth } from '../../hooks/useAuth'
@@ -61,7 +62,7 @@ function AddShoeingSheet({ open, onClose, animalId, animalName, ownerId }: {
       onClose()
       setForm({ date: '', type: 'completo', farrier_name: '', cost: '', next_estimated_date: '', notes: '' })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(errMsg(e))
     }
     setSaving(false)
   }

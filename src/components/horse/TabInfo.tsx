@@ -1,3 +1,4 @@
+import { errMsg } from '../../lib/errors'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUpdateAnimal, useDeleteAnimal } from '../../hooks/useAnimals'
@@ -121,7 +122,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
       } as Partial<Animal> & { id: string })
       setEditing(false)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(errMsg(e))
     }
     setSaving(false)
   }
