@@ -54,6 +54,8 @@ export interface Animal {
   sire_gd_external_name?: string  // paternal grandmother
   dam_gs_external_name?: string   // maternal grandfather
   dam_gd_external_name?: string   // maternal grandmother
+  // great-grandparent external names (keys like sire_gs_s, dam_gd_d); see TabGenealogy
+  ggp_external_names?: Record<string, string> | null
   // location
   meadow_id?: string
   // economics (own animals)

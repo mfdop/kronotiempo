@@ -44,6 +44,11 @@ create table animals (
   sire_external_name   text,
   dam_id               uuid references animals(id),
   dam_external_name    text,
+  sire_gs_external_name text,
+  sire_gd_external_name text,
+  dam_gs_external_name  text,
+  dam_gd_external_name  text,
+  ggp_external_names   jsonb not null default '{}'::jsonb,
   -- location
   meadow_id            uuid,  -- FK added after meadows table
   -- economics

@@ -15,6 +15,20 @@ function ageStr(b?: string) {
 
 type PickerTarget = 'sire' | 'dam' | 'sire_gs' | 'sire_gd' | 'dam_gs' | 'dam_gd'
 
+// Great-grandparents: grandparent key + which of its parents (s = padre, d = madre)
+type GKey = 'sire_gs' | 'sire_gd' | 'dam_gs' | 'dam_gd'
+type GgpTarget = { g: GKey; side: 's' | 'd' }
+type GgpField = 'sire_gs_external_name' | 'sire_gd_external_name' | 'dam_gs_external_name' | 'dam_gd_external_name'
+const G_KEYS: GKey[] = ['sire_gs', 'sire_gd', 'dam_gs', 'dam_gd']
+const G_LABELS: Record<GKey, string> = {
+  sire_gs: 'abuelo paterno', sire_gd: 'abuela paterna',
+  dam_gs:  'abuelo materno', dam_gd:  'abuela materna',
+}
+const MALE: Animal['sex'][]   = ['semental', 'potro', 'castrado']
+const FEMALE: Animal['sex'][] = ['yegua', 'potra']
+const ggpField = (role: 'sire' | 'dam', side: 's' | 'd') =>
+  `${role}_${side === 's' ? 'gs' : 'gd'}_external_name` as GgpField
+
 // Sex filters per picker target
 const SEX_FILTER: Record<PickerTarget, Animal['sex'][]> = {
   sire:    ['semental', 'potro', 'castrado'],
@@ -186,6 +200,54 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
   const sireParentIsExternal = !sire
   const damParentIsExternal  = !dam
 
+  // ── Great-grandparents ──
+  // Resolution per slot (grandparent g, side s/d):
+  //  1. grandparent is an animal in the app -> its sire/dam (read-only here, edited on its own page)
+  //  2. parent is in the app (grandparent external) -> parent's own grandparent fields (edits the parent)
+  //  3. parent external -> stored on this animal in ggp_external_names
+  const grand: Record<GKey, { animal?: Animal; ext?: string; parent?: Animal; role: 'sire' | 'dam' }> = {
+    sire_gs: { animal: sireGS, ext: sireGSExt, parent: sire, role: 'sire' },
+    sire_gd: { animal: sireGD, ext: sireGDExt, parent: sire, role: 'dam' },
+    dam_gs:  { animal: damGS,  ext: damGSExt,  parent: dam,  role: 'sire' },
+    dam_gd:  { animal: damGD,  ext: damGDExt,  parent: dam,  role: 'dam' },
+  }
+
+  const resolveGgp = (g: GKey, side: 's' | 'd'): { animal?: Animal; ext?: string; editable: boolean } => {
+    const gp = grand[g]
+    if (gp.animal) {
+      const id  = side === 's' ? gp.animal.sire_id : gp.animal.dam_id
+      const ext = side === 's' ? gp.animal.sire_external_name : gp.animal.dam_external_name
+      return { animal: find(id), ext: ext ?? undefined, editable: false }
+    }
+    if (gp.parent) return { ext: gp.parent[ggpField(gp.role, side)] ?? undefined, editable: true }
+    return { ext: animal.ggp_external_names?.[`${g}_${side}`] ?? undefined, editable: true }
+  }
+
+  const [ggpOpen, setGgpOpen]     = useState(false)
+  const [ggpPicker, setGgpPicker] = useState<GgpTarget | null>(null)
+  const ggpKnown = G_KEYS
+    .flatMap(g => (['s', 'd'] as const).map(side => resolveGgp(g, side)))
+    .filter(x => x.animal || x.ext).length
+
+  const handleGgpSelect = (selected: Animal | null, extName: string) => {
+    if (!ggpPicker) return
+    const { g, side } = ggpPicker
+    const name = selected?.name || extName || null
+    const gp = grand[g]
+    let update: Partial<Animal> & { id: string }
+    if (gp.parent) {
+      update = { id: gp.parent.id, [ggpField(gp.role, side)]: name } as Partial<Animal> & { id: string }
+    } else {
+      const next = { ...(animal.ggp_external_names ?? {}) }
+      if (name) next[`${g}_${side}`] = name
+      else delete next[`${g}_${side}`]
+      update = { id: animal.id, ggp_external_names: next }
+    }
+    setSaveError(null)
+    updateAnimal.mutate(update, { onError: (e) => setSaveError(errMsg(e)) })
+    setGgpPicker(null)
+  }
+
   const offspring = all.filter(a => a.sire_id === animal.id || a.dam_id === animal.id)
 
   const handleSelect = (selected: Animal | null, extName: string) => {
@@ -288,6 +350,74 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
         </div>
       </div>
 
+      {/* GREAT-GRANDPARENTS (collapsible) */}
+      <div className="rounded-2xl overflow-hidden"
+           style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+        <button onClick={() => setGgpOpen(o => !o)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left">
+          <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>
+            Bisabuelos · {ggpKnown}/8
+          </p>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#A08888" strokeWidth="2" strokeLinecap="round"
+               style={{ transform: ggpOpen ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+        {ggpOpen && (
+          <div style={{ borderTop: '1px solid rgba(123,31,58,0.11)' }}>
+            {G_KEYS.map((g, gi) => {
+              const gp = grand[g]
+              const gName = gp.animal?.name ?? gp.ext
+              return (
+                <div key={g} className="px-3.5 py-2.5"
+                     style={{ borderBottom: gi < G_KEYS.length - 1 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#7B1F3A' }}>
+                    Padres de {G_LABELS[g]}{gName ? ` · ${gName}` : ''}
+                  </p>
+                  {(['s', 'd'] as const).map(side => {
+                    const ggp = resolveGgp(g, side)
+                    const name = ggp.animal?.name ?? ggp.ext
+                    const target = ggp.animal
+                    const onClick = target
+                      ? () => navigate(`/animales/${target.id}`)
+                      : ggp.editable ? () => setGgpPicker({ g, side }) : undefined
+                    return (
+                      <button key={side} onClick={onClick} disabled={!onClick}
+                              className="w-full flex items-center gap-2 py-1.5 text-left">
+                        <span className="text-[11px] w-[70px] shrink-0" style={{ color: '#A08888' }}>
+                          {side === 's' ? 'Bisabuelo' : 'Bisabuela'}
+                        </span>
+                        <span className="flex-1 min-w-0 text-[13px] truncate"
+                              style={{
+                                color: name ? '#1C1010' : '#A08888',
+                                fontWeight: name ? 600 : 400,
+                                fontStyle: name ? 'normal' : 'italic',
+                              }}>
+                          {name ?? 'Desconocido'}
+                        </span>
+                        <span className="text-[11px] font-semibold shrink-0" style={{ color: '#7B1F3A' }}>
+                          {target ? 'Ver ›' : ggp.editable ? (name ? 'Cambiar ›' : 'Añadir ›') : ''}
+                        </span>
+                      </button>
+                    )
+                  })}
+                  {gp.animal && (
+                    <p className="text-[10px] italic mt-0.5" style={{ color: '#A08888' }}>
+                      Se editan en la genealogía de {gp.animal.name}
+                    </p>
+                  )}
+                  {!gp.animal && gp.parent && (
+                    <p className="text-[10px] italic mt-0.5" style={{ color: '#A08888' }}>
+                      Se guardan también en la ficha de {gp.parent.name}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* OFFSPRING */}
       {offspring.length > 0 ? (
         <div className="rounded-2xl overflow-hidden"
@@ -317,6 +447,17 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
       ) : (
         <EmptyState icon="🐴" title="Sin crías registradas"
                     subtitle="Las crías aparecerán al vincular la genealogía" />
+      )}
+
+      {ggpPicker !== null && (
+        <AnimalPicker
+          open
+          onClose={() => setGgpPicker(null)}
+          onSelect={handleGgpSelect}
+          excludeId={animal.id}
+          title={`${ggpPicker.side === 's' ? 'Bisabuelo' : 'Bisabuela'} · padres de ${G_LABELS[ggpPicker.g]}`}
+          sexFilter={ggpPicker.side === 's' ? MALE : FEMALE}
+        />
       )}
 
       {picker !== null && (
