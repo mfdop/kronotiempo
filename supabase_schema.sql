@@ -59,6 +59,7 @@ create table animals (
   -- custody
   custody_owner_name   text,
   custody_owner_phone  text,
+  custody_owner_dni    text,
   -- misc
   ios_album            text,
   description          text,
@@ -78,6 +79,7 @@ create table meadows (
                    check (status in ('ocupada','libre','descanso','tratamiento')),
   icon_emoji     text default '🌿',
   color_rgba     text default 'rgba(46,107,62,0.18)',
+  has_water      boolean not null default true,
   notes          text,
   created_at     timestamptz default now()
 );
@@ -120,6 +122,8 @@ create table animal_genetics (
   cream           text,
   pearl           text,
   appaloosa_lp    text,
+  appaloosa       text,
+  patn1           text,
   dun             text,
   silver          text,
   roan            text,
@@ -183,6 +187,7 @@ create table clients (
   name         text not null,
   phone        text,
   instagram    text,
+  dni          text,
   city         text,
   stable_name  text,
   notes        text,
@@ -212,6 +217,9 @@ create table semen_sales (
   stallion_id     uuid not null references animals(id) on delete cascade,
   client_id       uuid not null references clients(id),
   mare_name       text,
+  mare_birth_date date,
+  mare_chip       text,
+  mare_ueln       text,
   agreed_price    numeric(10,2) not null,
   deposit_amount  numeric(10,2),
   final_amount    numeric(10,2),
@@ -226,7 +234,7 @@ create table semen_sales (
 create table semen_shippings (
   id               uuid primary key default uuid_generate_v4(),
   semen_sale_id    uuid not null references semen_sales(id) on delete cascade,
-  attempt_number   int not null check (attempt_number in (1,2,3)),
+  attempt_number   int not null check (attempt_number in (1,2,3,4,5)),
   estimated_date   date,
   actual_date      date,
   result           text not null default 'espera'
@@ -241,7 +249,7 @@ create table shoeing_records (
   id                  uuid primary key default uuid_generate_v4(),
   animal_id           uuid not null references animals(id) on delete cascade,
   date                date not null,
-  type                text not null check (type in ('completo','reherrado','correctivo','descalzo')),
+  type                text not null check (type in ('completo','recorte','perdida')),
   farrier_name        text,
   cost                numeric(8,2),
   next_estimated_date date,

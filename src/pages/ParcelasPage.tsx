@@ -6,6 +6,7 @@ import {
   useLogWater,
   useLogFood,
   computeWaterFoodStatus,
+  computeFoodStatus,
   statusTextColor,
   type MeadowWithLogs,
 } from '../hooks/useMeadows'
@@ -36,12 +37,13 @@ function NewMeadowSheet({ open, onClose }: { open: boolean; onClose: () => void 
   const [notes,    setNotes]   = useState('')
   const [emoji,    setEmoji]   = useState('🌿')
   const [color,    setColor]   = useState<string>(MEADOW_COLORS[0].rgba)
+  const [hasWater, setHasWater] = useState(true)
 
   // Reset on open
   useEffect(() => {
     if (open) {
       setName(''); setSurface(''); setRef(''); setStatus('libre')
-      setNotes(''); setEmoji('🌿'); setColor(MEADOW_COLORS[0].rgba)
+      setNotes(''); setEmoji('🌿'); setColor(MEADOW_COLORS[0].rgba); setHasWater(true)
     }
   }, [open])
 
@@ -61,6 +63,7 @@ function NewMeadowSheet({ open, onClose }: { open: boolean; onClose: () => void 
       notes:         notes || undefined,
       icon_emoji:    emoji,
       color_rgba:    color,
+      has_water:     hasWater,
     }, { onSuccess: onClose })
   }
 
@@ -135,6 +138,21 @@ function NewMeadowSheet({ open, onClose }: { open: boolean; onClose: () => void 
             placeholder="XXXXXXXXXX" style={inputSt} />
         </div>
 
+        {/* Water toggle */}
+        <button type="button" onClick={() => setHasWater(!hasWater)}
+          className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-left"
+          style={{ background: '#F7F3EE', border: '1px solid rgba(123,31,58,0.18)' }}>
+          <span>
+            <span className="block text-[13px] font-semibold" style={{ color: '#1C1010' }}>Tiene punto de agua</span>
+            <span className="block text-[11px]" style={{ color: '#6B5555' }}>Si no, se oculta el control de agua</span>
+          </span>
+          <span className="w-11 h-6 rounded-full relative shrink-0 transition-colors"
+                style={{ background: hasWater ? '#2E6B3E' : 'rgba(123,31,58,0.25)' }}>
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
+                  style={{ left: hasWater ? 22 : 2 }} />
+          </span>
+        </button>
+
         {/* Notes */}
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: '#A08888' }}>Notas</p>
@@ -173,7 +191,8 @@ function MeadowCard({
   onClick: () => void
 }) {
   const waterSt = computeWaterFoodStatus(meadow.meadow_water_logs)
-  const foodSt  = computeWaterFoodStatus(meadow.meadow_food_logs)
+  const foodSt  = computeFoodStatus(meadow.meadow_food_logs)
+  const hasWater = meadow.has_water !== false
   const count   = meadow.animals?.length ?? 0
   const color   = meadow.color_rgba ?? 'rgba(123,31,58,0.14)'
 
@@ -199,7 +218,7 @@ function MeadowCard({
       </div>
 
       {/* Counters row */}
-      <div className="grid grid-cols-3" style={{ borderTop: '1px solid rgba(123,31,58,0.09)' }}>
+      <div className={hasWater ? 'grid grid-cols-3' : 'grid grid-cols-2'} style={{ borderTop: '1px solid rgba(123,31,58,0.09)' }}>
         {/* Animals counter */}
         <div className="flex flex-col items-center py-2.5 cursor-pointer" onClick={onClick}
              style={{ borderRight: '1px solid rgba(123,31,58,0.09)' }}>
@@ -209,6 +228,7 @@ function MeadowCard({
         </div>
 
         {/* Water counter */}
+        {hasWater && (
         <button className="flex flex-col items-center py-2.5"
                 style={{ borderRight: '1px solid rgba(123,31,58,0.09)' }}
                 onClick={e => { e.stopPropagation(); onWater() }}>
@@ -218,6 +238,7 @@ function MeadowCard({
           </span>
           <span className="text-[9px] font-medium mt-0.5" style={{ color: '#6B5555' }}>Agua</span>
         </button>
+        )}
 
         {/* Food counter */}
         <button className="flex flex-col items-center py-2.5"
@@ -226,7 +247,9 @@ function MeadowCard({
           <span className="text-[14px] font-bold" style={{ color: statusTextColor(foodSt.status) }}>
             {foodSt.daysSince !== null ? `${foodSt.daysSince}d` : '—'}
           </span>
-          <span className="text-[9px] font-medium mt-0.5" style={{ color: '#6B5555' }}>Comida</span>
+          <span className="text-[9px] font-medium mt-0.5" style={{ color: '#6B5555' }}>
+            {foodSt.learning ? `Aprendiendo (${foodSt.learning.count}/${foodSt.learning.needed})` : 'Comida'}
+          </span>
         </button>
       </div>
     </div>

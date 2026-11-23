@@ -191,7 +191,7 @@ export default function ClienteDetailPage() {
   const [saving,   setSaving]     = useState(false)
   const [editErr,  setEditErr]    = useState<string | null>(null)
   const [editForm, setEditForm]   = useState({
-    name: '', phone: '', instagram: '', city: '', stable_name: '', notes: '',
+    name: '', phone: '', instagram: '', dni: '', city: '', stable_name: '', notes: '',
   })
 
   const openEdit = () => {
@@ -200,6 +200,7 @@ export default function ClienteDetailPage() {
       name:        client.name        ?? '',
       phone:       client.phone       ?? '',
       instagram:   client.instagram   ?? '',
+      dni:         client.dni         ?? '',
       city:        client.city        ?? '',
       stable_name: client.stable_name ?? '',
       notes:       client.notes       ?? '',
@@ -218,6 +219,7 @@ export default function ClienteDetailPage() {
         name:        editForm.name.trim(),
         phone:       editForm.phone       || undefined,
         instagram:   editForm.instagram   || undefined,
+        dni:         editForm.dni         || undefined,
         city:        editForm.city        || undefined,
         stable_name: editForm.stable_name || undefined,
         notes:       editForm.notes       || undefined,
@@ -346,6 +348,7 @@ export default function ClienteDetailPage() {
                 { key: 'name',        label: 'Nombre *',  type: 'text'  },
                 { key: 'phone',       label: 'Teléfono',  type: 'tel'   },
                 { key: 'instagram',   label: 'Instagram', type: 'text'  },
+                { key: 'dni',         label: 'DNI',       type: 'text'  },
                 { key: 'city',        label: 'Ciudad',    type: 'text'  },
                 { key: 'stable_name', label: 'Yeguada',   type: 'text'  },
               ].map(({ key, label, type }) => (
@@ -391,6 +394,13 @@ export default function ClienteDetailPage() {
                   <span className="text-[13px] font-semibold" style={{ color: '#833AB4' }}>@{client.instagram}</span>
                 </div>
               )}
+              {client.dni && (
+                <div className="flex items-center justify-between px-4 py-2.5"
+                     style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
+                  <span className="text-[13px]" style={{ color: '#6B5555' }}>DNI</span>
+                  <span className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{client.dni}</span>
+                </div>
+              )}
               {client.city && (
                 <div className="flex items-center justify-between px-4 py-2.5"
                      style={{ borderBottom: '1px solid rgba(123,31,58,0.07)' }}>
@@ -411,7 +421,7 @@ export default function ClienteDetailPage() {
                   <span className="text-[13px]" style={{ color: '#1C1010' }}>{client.notes}</span>
                 </div>
               )}
-              {!client.phone && !client.instagram && !client.city && !client.stable_name && !client.notes && (
+              {!client.phone && !client.instagram && !client.dni && !client.city && !client.stable_name && !client.notes && (
                 <p className="text-[13px] px-4 py-3 text-center" style={{ color: '#A08888' }}>
                   Sin datos de contacto · pulsa Editar para añadir
                 </p>

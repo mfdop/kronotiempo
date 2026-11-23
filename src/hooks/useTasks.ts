@@ -4,6 +4,7 @@ import { format, addDays, differenceInDays, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
 import { createAutoTask } from './useReproduction'
+import { SHOEING_INTERVAL_DAYS } from '../lib/constants'
 import type { Task, DailyNote, TaskOrigin } from '../types'
 
 // ─── TASKS ───────────────────────────────────────────────────────────────────
@@ -125,7 +126,7 @@ export function useUpsertDailyNote() {
 // ─── AUTO TASKS ──────────────────────────────────────────────────────────────
 // Runs once per session. Checks:
 //   1. Pregnancies with expected_birth_date ≤ 14 days away
-//   2. Shoeing records with overdue next_estimated_date
+//   2. Latest shoeing per animal due within 14 days (next date or date + 90 days)
 //   3. Vaccines with overdue next_date
 // Skips if a pending auto-task already exists for the same origin+animal.
 
@@ -188,23 +189,29 @@ export function useAutoTasks() {
         existingSet.add(key)
       }
 
-      // 2. Overdue shoeings
+      // 2. Shoeings due soon: based on each animal's most recent record,
+      //    next_estimated_date or (date + 90 days). Warn from 14 days before.
       const { data: shoeings } = await supabase
         .from('shoeing_records')
-        .select('id, animal_id, next_estimated_date')
+        .select('id, animal_id, date, next_estimated_date')
         .in('animal_id', myIds)
-        .lte('next_estimated_date', today)
-        .not('next_estimated_date', 'is', null)
+        .order('date', { ascending: false })
 
-      for (const s of shoeings ?? []) {
-        const key = `auto_herrado|${s.animal_id}`
+      const latestByAnimal = new Map<string, { date: string; next_estimated_date: string | null }>()
+      for (const sr of shoeings ?? []) {
+        if (!latestByAnimal.has(sr.animal_id)) latestByAnimal.set(sr.animal_id, sr)
+      }
+      for (const [animalId, sr] of latestByAnimal) {
+        const key = `auto_herrado|${animalId}`
         if (existingSet.has(key)) continue
+        const due = sr.next_estimated_date ?? format(addDays(parseISO(sr.date), SHOEING_INTERVAL_DAYS), 'yyyy-MM-dd')
+        if (due > in14) continue
         await createAutoTask({
           owner_id: ownerId,
           origin: 'auto_herrado',
-          animal_id: s.animal_id,
+          animal_id: animalId,
           title: 'Herrado pendiente',
-          due_date: s.next_estimated_date!,
+          due_date: due,
         })
         existingSet.add(key)
       }

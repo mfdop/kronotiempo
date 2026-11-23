@@ -49,6 +49,7 @@ export default function NuevoAnimalPage() {
     // custodia
     custody_owner_name: '',
     custody_owner_phone: '',
+    custody_owner_dni: '',
     // economics
     purchase_price: '',
     purchase_date: '',
@@ -84,6 +85,7 @@ export default function NuevoAnimalPage() {
         chip: form.chip || undefined,
         custody_owner_name: isCustodia ? (form.custody_owner_name || undefined) : undefined,
         custody_owner_phone: isCustodia ? (form.custody_owner_phone || undefined) : undefined,
+        custody_owner_dni: isCustodia ? (form.custody_owner_dni || undefined) : undefined,
         description: form.description || undefined,
         private_notes: form.private_notes || undefined,
         purchase_origin: isComprado ? (form.purchase_origin || undefined) : undefined,
@@ -217,6 +219,11 @@ export default function NuevoAnimalPage() {
             <Field label="Teléfono del propietario">
               <input type="tel" value={form.custody_owner_phone} onChange={e => set('custody_owner_phone', e.target.value)}
                      placeholder="600 000 000" className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                     style={{ ...inputStyle, background: '#fff' }} />
+            </Field>
+            <Field label="DNI del propietario">
+              <input value={form.custody_owner_dni} onChange={e => set('custody_owner_dni', e.target.value)}
+                     placeholder="12345678A" className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                      style={{ ...inputStyle, background: '#fff' }} />
             </Field>
           </div>

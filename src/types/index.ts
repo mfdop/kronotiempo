@@ -13,7 +13,7 @@ export type ShippingResult = 'prenez' | 'espera' | 'sin_prenez'
 export type PaymentStatus  = 'sin_reserva' | 'reserva' | 'completo'
 export type EpisodeStatus  = 'activo' | 'resuelto' | 'cronico'
 export type DocType        = 'veterinario' | 'genetica' | 'certificado' | 'otro'
-export type HerradoType    = 'completo' | 'reherrado' | 'correctivo' | 'descalzo'
+export type HerradoType    = 'completo' | 'recorte' | 'perdida'
 export type VacunaType     = 'gripe' | 'tetanos' | 'desparasitacion' | 'rinoneumonitis' | 'nilo' | 'otro'
 export type ParcelaStatus  = 'ocupada' | 'libre' | 'descanso' | 'tratamiento'
 export type TaskStatus     = 'pendiente' | 'completada'
@@ -72,6 +72,7 @@ export interface Animal {
   // custody
   custody_owner_name?: string
   custody_owner_phone?: string
+  custody_owner_dni?: string
   // notes
   description?: string
   private_notes?: string
@@ -95,6 +96,7 @@ export interface Meadow {
   status: ParcelaStatus
   icon_emoji?: string
   color_rgba?: string          // e.g. "rgba(46,107,62,0.18)"
+  has_water?: boolean          // false = no water point (hide water UI); default true
   notes?: string
   created_at: string
 }
@@ -130,6 +132,7 @@ export interface AnimalGenetics {
   cream?: string       // N/N | N/Cr | Cr/Cr
   pearl?: string       // N/N | N/Prl | Prl/Prl
   appaloosa?: string   // N/N | N/LP | LP/LP
+  patn1?: string       // N/N | N/PATN1 | PATN1/PATN1 (pattern-1 modifier, with LP -> leopard)
   // extended loci (collapsed by default)
   dun?: string
   silver?: string
@@ -190,6 +193,9 @@ export interface SemenSale {
   stallion_id: string
   client_id: string
   mare_name?: string
+  mare_birth_date?: string
+  mare_chip?: string
+  mare_ueln?: string
   agreed_price: number
   deposit_amount?: number
   final_amount?: number
@@ -202,7 +208,7 @@ export interface SemenSale {
 export interface SemenShipping {
   id: string
   semen_sale_id: string
-  attempt_number: 1 | 2 | 3
+  attempt_number: 1 | 2 | 3 | 4 | 5
   estimated_date?: string
   actual_date?: string
   result: ShippingResult
@@ -314,6 +320,7 @@ export interface Client {
   name: string
   phone?: string               // unique identifier
   instagram?: string           // unique identifier (without @)
+  dni?: string
   city?: string
   stable_name?: string
   notes?: string

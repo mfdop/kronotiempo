@@ -47,6 +47,8 @@ function predictCross(g1: AnimalGenetics | null, g2: AnimalGenetics | null) {
   const agt2  = parseAlleles(g2.agouti)
   const lp1   = parseAlleles(g1.appaloosa)
   const lp2   = parseAlleles(g2.appaloosa)
+  const pt1   = parseAlleles(g1.patn1)
+  const pt2   = parseAlleles(g2.patn1)
 
   // Grey probability
   let greyP = 0
@@ -79,7 +81,17 @@ function predictCross(g1: AnimalGenetics | null, g2: AnimalGenetics | null) {
     appaloosa = Object.entries(ld).filter(([k]) => k.includes('LP')).reduce((s, [, v]) => s + v, 0)
   }
 
-  return { greyP, alazan, castano, negro, appaloosa }
+  // PATN1 (independent locus): any copy / two copies
+  let patn1 = 0, patn1Hom = 0
+  if (pt1.length && pt2.length) {
+    const pd = crossDist(pt1, pt2)
+    patn1 = Object.entries(pd).filter(([k]) => k.split('/').includes('PATN1')).reduce((s, [, v]) => s + v, 0)
+    patn1Hom = pd['PATN1/PATN1'] ?? 0
+  }
+  // LP + PATN1 together -> leopard / near-leopard (loci are independent)
+  const leopard = lp1.length && lp2.length && pt1.length && pt2.length ? appaloosa * patn1 : null
+
+  return { greyP, alazan, castano, negro, appaloosa, patn1, patn1Hom, leopard }
 }
 
 // ─── LOCI BADGE ───────────────────────────────────────────────────────────────
@@ -124,6 +136,11 @@ const LOCI_INTERP: Record<string, Record<string, { type: BadgeType; text: string
     'N/N': { type: 'neu', text: 'Sin patrón appaloosa' },
     'N/LP': { type: 'pur', text: 'Portador patrón appaloosa' },
     'LP/LP': { type: 'pur', text: 'Appaloosa homocigoto · patrón máximo' },
+  },
+  patn1: {
+    'N/N': { type: 'neu', text: 'Sin PATN1' },
+    'N/PATN1': { type: 'pur', text: 'Portador PATN1 · con LP aumenta el patrón (casi leopardo)' },
+    'PATN1/PATN1': { type: 'pur', text: 'PATN1 homocigoto · con LP produce leopardo / casi leopardo' },
   },
   dun: {
     'N/N': { type: 'neu', text: 'Sin raya de mulo' },
@@ -351,6 +368,7 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
     cream:     genetics?.cream     ?? undefined,
     pearl:     genetics?.pearl     ?? undefined,
     appaloosa: genetics?.appaloosa ?? undefined,
+    patn1:     genetics?.patn1     ?? undefined,
     dun:       genetics?.dun       ?? undefined,
     silver:    genetics?.silver    ?? undefined,
     roan:      genetics?.roan      ?? undefined,
@@ -567,6 +585,25 @@ export default function TabGenetica({ animal }: { animal: Animal }) {
                 )}
               </div>
             )}
+
+            <div className="space-y-2">
+              <p className="text-[12px] font-semibold" style={{ color: '#1C1010' }}>PATN1 (modificador de patrón)</p>
+              {!partnerGenetics?.patn1 || !genetics?.patn1 ? (
+                <p className="text-[12px]" style={{ color: '#A08888' }}>Sin datos del locus PATN1 en uno o ambos animales.</p>
+              ) : (
+                <>
+                  <PctBar label="Con PATN1" value={prediction.patn1} color="#6B25A8" />
+                  <PctBar label="PATN1/PATN1" value={prediction.patn1Hom} color="#8E5CC4" />
+                  <PctBar label="Sin PATN1" value={1 - prediction.patn1} color="#D0C4C0" />
+                  {prediction.leopard !== null && (
+                    <PctBar label="LP + PATN1" value={prediction.leopard} color="#7B1F3A" />
+                  )}
+                  <p className="text-[11px]" style={{ color: '#A08888' }}>
+                    LP + PATN1 produce un patrón leopardo o casi leopardo (probabilidad combinada de ambos loci).
+                  </p>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

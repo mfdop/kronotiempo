@@ -223,7 +223,7 @@ export function useUpsertClient() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: {
-      id?: string; name: string; phone?: string; instagram?: string
+      id?: string; name: string; phone?: string; instagram?: string; dni?: string
       city?: string; stable_name?: string; notes?: string; owner_id: string
     }) => {
       const { data, error } = values.id

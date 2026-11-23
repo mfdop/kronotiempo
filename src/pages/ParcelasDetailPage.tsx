@@ -11,6 +11,7 @@ import {
   useUpdateMeadow,
   useDeleteMeadow,
   computeWaterFoodStatus,
+  computeFoodStatus,
   statusTextColor,
 } from '../hooks/useMeadows'
 import { useAnimalsByMeadow, useAnimals, useUpdateAnimal } from '../hooks/useAnimals'
@@ -40,7 +41,7 @@ function EditMeadowSheet({
 }: {
   open: boolean
   onClose: () => void
-  meadow: { id: string; name: string; surface_ha?: number; cadastral_ref?: string; status: ParcelaStatus; notes?: string; icon_emoji?: string; color_rgba?: string }
+  meadow: { id: string; name: string; surface_ha?: number; cadastral_ref?: string; status: ParcelaStatus; notes?: string; icon_emoji?: string; color_rgba?: string; has_water?: boolean }
 }) {
   const update = useUpdateMeadow()
   const [name, setName]         = useState(meadow.name)
@@ -50,6 +51,7 @@ function EditMeadowSheet({
   const [notes, setNotes]       = useState(meadow.notes ?? '')
   const [emoji, setEmoji]       = useState(meadow.icon_emoji ?? '🌿')
   const [colorRgba, setColor]   = useState(meadow.color_rgba ?? MEADOW_COLORS[0].rgba)
+  const [hasWater, setHasWater] = useState(meadow.has_water !== false)
 
   const inputSt: React.CSSProperties = {
     background: '#F7F3EE', border: '1px solid rgba(123,31,58,0.18)',
@@ -67,6 +69,7 @@ function EditMeadowSheet({
       notes: notes || undefined,
       icon_emoji: emoji,
       color_rgba: colorRgba,
+      has_water: hasWater,
     }, { onSuccess: onClose })
   }
 
@@ -129,6 +132,21 @@ function EditMeadowSheet({
           <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: '#A08888' }}>Ref. catastral</p>
           <input value={ref} onChange={e => setRef(e.target.value)} placeholder="XXXXXXXXXX" style={inputSt} />
         </div>
+
+        {/* Water toggle */}
+        <button type="button" onClick={() => setHasWater(!hasWater)}
+          className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-left"
+          style={{ background: '#F7F3EE', border: '1px solid rgba(123,31,58,0.18)' }}>
+          <span>
+            <span className="block text-[13px] font-semibold" style={{ color: '#1C1010' }}>Tiene punto de agua</span>
+            <span className="block text-[11px]" style={{ color: '#6B5555' }}>Si no, se oculta el control de agua</span>
+          </span>
+          <span className="w-11 h-6 rounded-full relative shrink-0 transition-colors"
+                style={{ background: hasWater ? '#2E6B3E' : 'rgba(123,31,58,0.25)' }}>
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
+                  style={{ left: hasWater ? 22 : 2 }} />
+          </span>
+        </button>
 
         {/* Notes */}
         <div>
@@ -270,11 +288,12 @@ function LogRow({ loggedAt }: { loggedAt: string }) {
 // ─── BIG COUNTER BUTTON ───────────────────────────────────────────────────────
 
 function BigCounter({
-  icon, label, daysSince, status, onClick,
+  icon, label, daysSince, status, onClick, hint,
 }: {
   icon: string; label: string
-  daysSince: number | null; status: 'ok' | 'warn' | 'due'
+  daysSince: number | null; status: 'ok' | 'warn' | 'due' | 'neutral'
   onClick: () => void
+  hint?: string
 }) {
   const col = statusTextColor(status)
   return (
@@ -286,6 +305,7 @@ function BigCounter({
         {daysSince !== null ? `${daysSince}d` : '—'}
       </span>
       <span className="text-[11px] font-semibold mt-1" style={{ color: '#6B5555' }}>{label}</span>
+      {hint && <span className="text-[10px] mt-0.5" style={{ color: '#A08888' }}>{hint}</span>}
       <span className="text-[10px] font-semibold mt-1" style={{ color: '#7B1F3A' }}>Tap para registrar</span>
     </button>
   )
@@ -318,7 +338,9 @@ export default function ParcelasDetailPage() {
                                     action={{ label: '‹ Volver', onClick: () => navigate(-1) }} />
 
   const wSt = computeWaterFoodStatus(waterLogs ?? [])
-  const fSt = computeWaterFoodStatus(foodLogs  ?? [])
+  const fSt = computeFoodStatus(foodLogs  ?? [])
+  const hasWater = meadow.has_water !== false
+  const foodHint = fSt.learning ? `Aprendiendo (${fSt.learning.count}/${fSt.learning.needed})` : undefined
   const color = meadow.color_rgba ?? 'rgba(123,31,58,0.14)'
 
   return (
@@ -361,8 +383,8 @@ export default function ParcelasDetailPage() {
           <div className="p-4 space-y-4 pb-8">
             {/* Big counters */}
             <div className="flex gap-3">
-              <BigCounter icon="💧" label="Agua" daysSince={wSt.daysSince} status={wSt.status} onClick={() => setConfirmW(true)} />
-              <BigCounter icon="🌿" label="Comida" daysSince={fSt.daysSince} status={fSt.status} onClick={() => setConfirmF(true)} />
+              {hasWater && <BigCounter icon="💧" label="Agua" daysSince={wSt.daysSince} status={wSt.status} onClick={() => setConfirmW(true)} />}
+              <BigCounter icon="🌿" label="Comida" daysSince={fSt.daysSince} status={fSt.status} hint={foodHint} onClick={() => setConfirmF(true)} />
             </div>
 
             {/* Info card */}
@@ -374,8 +396,8 @@ export default function ParcelasDetailPage() {
                 { label: 'Superficie', value: meadow.surface_ha ? `${meadow.surface_ha} ha` : undefined },
                 { label: 'Ref. catastral', value: meadow.cadastral_ref },
                 { label: 'Estado', value: STATUS_OPTIONS.find(s => s.value === meadow.status)?.label },
-                (waterLogs?.length ?? 0) >= 2 ? { label: 'Media relleno agua', value: `cada ${wSt.average} días` } : null,
-                (foodLogs?.length ?? 0) >= 2  ? { label: 'Media relleno comida', value: `cada ${fSt.average} días` } : null,
+                hasWater && (waterLogs?.length ?? 0) >= 2 ? { label: 'Media relleno agua', value: `cada ${wSt.average} días` } : null,
+                !fSt.learning && (foodLogs?.length ?? 0) >= 2  ? { label: 'Media relleno comida', value: `cada ${fSt.average} días` } : null,
                 { label: 'Notas', value: meadow.notes },
               ].filter(Boolean) as { label: string; value: string | undefined | null }[]).map((row, i) => (
                 <div key={row.label} className="flex items-start justify-between px-4 py-2.5"
@@ -390,7 +412,7 @@ export default function ParcelasDetailPage() {
             </div>
 
             {/* Water history */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+            {hasWater && <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
               <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
                 <span>💧</span>
                 <p className="text-[11px] font-bold uppercase tracking-wider flex-1" style={{ color: '#A08888' }}>Historial agua</p>
@@ -402,14 +424,16 @@ export default function ParcelasDetailPage() {
                   : waterLogs.slice(0, 10).map(l => <LogRow key={l.id} loggedAt={l.logged_at} />)
                 }
               </div>
-            </div>
+            </div>}
 
             {/* Food history */}
             <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
               <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
                 <span>🌿</span>
                 <p className="text-[11px] font-bold uppercase tracking-wider flex-1" style={{ color: '#A08888' }}>Historial comida</p>
-                <span className="text-[11px]" style={{ color: '#A08888' }}>Media: {fSt.average}d</span>
+                <span className="text-[11px]" style={{ color: '#A08888' }}>
+                  {foodHint ?? `Media: ${fSt.average}d`}
+                </span>
               </div>
               <div className="px-3">
                 {!foodLogs || foodLogs.length === 0

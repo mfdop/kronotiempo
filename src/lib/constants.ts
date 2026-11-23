@@ -67,6 +67,7 @@ export const LOCI_PRIMARY = [
   { key: 'cream',      label: 'Cream (Cr)',     options: ['N/N','N/Cr','Cr/Cr'] },
   { key: 'pearl',      label: 'Pearl (Prl)',    options: ['N/N','N/Prl','Prl/Prl'] },
   { key: 'appaloosa',  label: 'Appaloosa (LP)', options: ['N/N','N/LP','LP/LP'] },
+  { key: 'patn1',      label: 'Patn1 (PATN1)',  options: ['N/N','N/PATN1','PATN1/PATN1'] },
 ] as const
 
 export const LOCI_SECONDARY = [
@@ -111,11 +112,17 @@ export const DOC_TYPE_LABELS: Record<string, string> = {
 
 // ─── HERRADO TYPES ───────────────────────────────────────────────────────────
 export const HERRADO_TYPE_LABELS: Record<string, string> = {
-  completo:   'Completo',
-  reherrado:  'Reherrado',
-  correctivo: 'Correctivo',
-  descalzo:   'Descalzo',
+  completo: 'Completo',
+  recorte:  'Recorte',
+  perdida:  'Pérdida',
 }
+
+// Default interval until the next shoeing (3 months)
+export const SHOEING_INTERVAL_DAYS = 90
+
+// Max semen shipping attempts per sale
+export const MAX_SHIPPING_ATTEMPTS = 5
+export const SHIPPING_ORDINALS = ['1.er', '2.º', '3.er', '4.º', '5.º'] as const
 
 // ─── PREGNANCY EXPECTED DAYS ─────────────────────────────────────────────────
 export const PREGNANCY_DAYS = 340

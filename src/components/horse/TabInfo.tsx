@@ -92,6 +92,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
     private_notes:   animal.private_notes   ?? '',
     custody_owner_name:  animal.custody_owner_name  ?? '',
     custody_owner_phone: animal.custody_owner_phone ?? '',
+    custody_owner_dni:   animal.custody_owner_dni   ?? '',
   })
   const set = (k: string, v: string) => setF(p => ({ ...p, [k]: v }))
 
@@ -117,6 +118,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
         private_notes:   f.private_notes   || null,
         custody_owner_name:  f.custody_owner_name  || null,
         custody_owner_phone: f.custody_owner_phone || null,
+        custody_owner_dni:   f.custody_owner_dni   || null,
       } as Partial<Animal> & { id: string })
       setEditing(false)
     } catch (e: unknown) {
@@ -250,6 +252,12 @@ export default function TabInfo({ animal }: { animal: Animal }) {
             {editing
               ? <input type="tel" value={f.custody_owner_phone} onChange={e => set('custody_owner_phone', e.target.value)} {...inp} />
               : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.custody_owner_phone || '—'}</p>}
+          </div>
+          <div>
+            <Label>DNI del propietario</Label>
+            {editing
+              ? <input value={f.custody_owner_dni} onChange={e => set('custody_owner_dni', e.target.value)} {...inp} />
+              : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.custody_owner_dni || '—'}</p>}
           </div>
         </Section>
       )}
