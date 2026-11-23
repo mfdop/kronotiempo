@@ -39,8 +39,9 @@ export function Azulejo({
       <HorseFigure
         coat={coatFromAnimal(animal)}
         ground="none"
-        viewBox="18 8 194 182"
-        style={{ position: 'absolute', inset: '5%', width: '90%', height: '90%' }}
+        icon={size < 64}
+        viewBox="-6 14 236 286"
+        style={{ position: 'absolute', inset: '6%', width: '88%', height: '88%' }}
       />
     </div>
   )

@@ -116,12 +116,12 @@ function Leg({ leg, id, ctx, far, hind }: { leg: LegRig; id: 'fn' | 'ff' | 'hn' 
             <TubeSpots tube={t} list={LEG_SPOTS[id].filter(s => s.u < 0.3)} fill={mantaSpot(coat, p)} />
           </>
         )}
+        {far && <path d={d} fill={mix(p.coat, '#5a2c14', 0.42)} opacity={0.55} />}
         {/* dark points on the lower leg (soft gradient towards the fetlock) */}
         <path d={tubeRegion(t, kneeU, 1)} fill={`url(#${ctx.uid}-${id}-pt)`} />
         {coat.cuatroalbo && <Sock tube={t} u0={hind ? 0.77 : 0.74} fill={p.white} />}
         {/* cel shading: back side band + front highlight */}
         <path d={tubeRegion(t, 0, 1, 0.45, 1.05)} fill={p.shade} opacity={0.4} />
-        {far && <path d={d} fill={mix(p.coat, '#5a2c14', 0.42)} opacity={0.62} />}
       </Skin>
       <path d={tubeSide(t, 1, leg.spec.stroke[0], 1)} fill="none" stroke={p.line} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
       <path d={tubeSide(t, -1, leg.spec.stroke[1], 1)} fill="none" stroke={p.line} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
@@ -195,6 +195,12 @@ function SideHorse({ rig, pose, ctx }: { rig: Rig; pose: Pose; ctx: Ctx }) {
   const sw = 1.5 * (ctx.icon ? 2.3 : 1)
   const neck: Tube = rig.neck
   const L = rig.legs
+  const nearLegs = (
+    <>
+      <Leg leg={L.hn} id="hn" ctx={ctx} far={false} hind />
+      <Leg leg={L.fn} id="fn" ctx={ctx} far={false} hind={false} />
+    </>
+  )
   return (
     <g transform={`translate(0 ${rig.dy.toFixed(1)})`}>
       <Leg leg={L.hf} id="hf" ctx={ctx} far hind />
@@ -208,8 +214,7 @@ function SideHorse({ rig, pose, ctx }: { rig: Rig; pose: Pose; ctx: Ctx }) {
           <path key={i} d={s} fill="none" stroke={i === 2 ? p.maneLo : p.maneHi} strokeWidth={i === 2 ? 1.6 : 2} strokeLinecap="round" opacity={0.75} />)}
       </g>
 
-      <Leg leg={L.hn} id="hn" ctx={ctx} far={false} hind />
-      <Leg leg={L.fn} id="fn" ctx={ctx} far={false} hind={false} />
+      {pose.legsFront <= 0.5 && nearLegs}
 
       {/* neck (base tucked under the torso) */}
       <Skin id="neck" d={tubeRegion(neck)} ctx={ctx} line={null}>
@@ -240,6 +245,8 @@ function SideHorse({ rig, pose, ctx }: { rig: Rig; pose: Pose; ctx: Ctx }) {
         </g>
       </g>
 
+      {pose.legsFront > 0.5 && nearLegs}
+
       {/* mane */}
       <g className="hz-manesway">
         <path d={rig.mane.path} fill={p.mane} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
@@ -254,27 +261,27 @@ function SideHorse({ rig, pose, ctx }: { rig: Rig; pose: Pose; ctx: Ctx }) {
 
 // ─── front view ("De frente") ───────────────────────────────────────────────
 const F = {
-  body: 'M 84 104 C 68 110 57 124 56 146 C 55 164 61 178 74 186 L 138 186 C 151 178 157 164 156 146 C 155 124 144 110 128 104 Z',
-  chest: 'M 82 150 C 90 162 99 168 106 170 C 113 168 122 162 130 150 M 106 172 L 106 184',
-  neck: 'M 90 64 C 88 84 85 100 82 114 L 130 114 C 127 100 124 84 122 64 Z',
-  head: 'M 106 33 C 95.5 33 89 40 89 51 C 89 61 92 70 95.5 79 C 97.5 85 96.5 92 97.5 98.5 C 98.5 104 101.5 106.5 106 106.5 ' +
-        'C 110.5 106.5 113.5 104 114.5 98.5 C 115.5 92 114.5 85 116.5 79 C 120 70 123 61 123 51 C 123 40 116.5 33 106 33 Z',
-  muzzle: 'M 96 86 C 100 82 112 82 116 86 L 118 110 L 94 110 Z',
-  careto: 'M 102.5 38 C 101 48 103 58 103.2 68 C 103.4 78 100.5 88 99.5 100 L 112.5 100 C 111.5 88 108.6 78 108.8 68 C 109 58 111 48 109.5 38 Z',
-  earL: 'M 94.5 42 C 91.5 35 91 28.5 92.5 22 C 97.5 26 100.5 32 101 39 Z',
-  earR: 'M 117.5 42 C 120.5 35 121 28.5 119.5 22 C 114.5 26 111.5 32 111 39 Z',
-  forelock: 'M 96 38 C 100 32 112 32 116 38 C 114 44 112 47 110 52 C 109 47 108 45 106 44 C 104 46 103 49 102 54 C 100 48 98 43 96 38 Z',
-  mane: 'M 92 44 C 84 58 81 80 82 110 C 84 116 88 120 90 118 C 88 100 89 84 92 70 C 94 60 97 52 98 46 Z',
-  tail: 'M 70 176 C 62 196 60 222 64 252 C 68 262 74 262 78 254 C 78 226 78 200 80 180 Z',
+  body: 'M 86 106 C 74 110 67 124 66 142 C 65 160 69 176 79 187 L 133 187 C 143 176 147 160 146 142 C 145 124 138 110 126 106 Z',
+  chest: 'M 84 150 C 92 160 100 165 106 167 C 112 165 120 160 128 150 M 106 170 L 106 184',
+  neck: 'M 93 66 C 91 84 89 98 86 112 L 126 112 C 123 98 121 84 119 66 Z',
+  head: 'M 106 35 C 96.5 35 90.5 41 90.5 51 C 90.5 60 93 68 96 76 C 98 82 97.5 90 98.5 97.5 C 99.5 103.5 102 106.5 106 106.5 ' +
+        'C 110 106.5 112.5 103.5 113.5 97.5 C 114.5 90 114 82 116 76 C 119 68 121.5 60 121.5 51 C 121.5 41 115.5 35 106 35 Z',
+  muzzle: 'M 92 80 C 100 76 112 76 120 80 L 120 110 L 92 110 Z',
+  careto: 'M 103 40 C 101.8 50 103.6 60 103.6 70 C 103.6 80 101.2 90 100.4 100 L 111.6 100 C 110.8 90 108.4 80 108.4 70 C 108.4 60 110.2 50 109 40 Z',
+  earL: 'M 96 43 C 93 36 92.6 29.5 94 23 C 98.8 27 101.6 33 102 40 Z',
+  earR: 'M 116 43 C 119 36 119.4 29.5 118 23 C 113.2 27 110.4 33 110 40 Z',
+  forelock: 'M 97 39 C 101 33 111 33 115 39 C 113.5 44 112 47 110.6 51.5 C 109.6 47.5 108.4 45.5 106.4 44.5 C 104.8 46.5 103.8 49.5 103 53.5 C 101.4 48 99.2 43 97 39 Z',
+  mane: 'M 93 46 C 86 60 84 80 85 108 C 86.5 113 89 115 91 113 C 89.5 96 90.5 82 93.5 70 C 95 62 97 54 98 48 Z',
+  tail: 'M 72 178 C 64 198 62 224 66 254 C 70 264 76 264 80 256 C 80 228 80 202 82 182 Z',
 }
-const F_SPOTS = scatter(71, [58, 106, 154, 184], 14, 3.4, 6.6, (x, y) => Math.hypot(x - 106, (y - 140) * 0.9) < 54)
+const F_SPOTS = scatter(71, [66, 106, 146, 186], 16, 3, 6, (x, y) => Math.hypot(x - 106, (y - 146) * 0.7) < 42)
 const F_HEAD_SPOTS = scatter(73, [90, 44, 122, 84], 6, 1.8, 3.2, (x, y) => Math.abs(x - 106) > 5 && Math.hypot(Math.abs(x - 106) - 11, y - 61) > 6)
 const F_NECK_SPOTS = scatter(79, [86, 70, 126, 112], 4, 3, 5)
 const F_LEGS = {
-  l:  buildTube([[90, 174], [89.5, 214], [90, 264], [91, 281]], [[10, 9], [6.6, 6.6], [5.6, 5.6], [5, 5]]),
-  r:  buildTube([[122, 174], [122.5, 214], [122, 264], [121, 281]], [[9, 10], [6.6, 6.6], [5.6, 5.6], [5, 5]]),
-  hl: buildTube([[76, 186], [77, 222], [78, 266], [79, 276]], [[7, 7], [5.6, 5.6], [5, 5], [4.6, 4.6]]),
-  hr: buildTube([[108, 186], [107, 222], [106.5, 266], [106.5, 276]], [[7, 7], [5.6, 5.6], [5, 5], [4.6, 4.6]]),
+  l:  buildTube([[93, 172], [92.5, 220], [93, 270], [93.5, 283]], [[9, 8], [7.4, 7.4], [5.6, 5.6], [4.6, 4.6], [5.4, 5.4], [4.4, 4.4], [5, 5]]),
+  r:  buildTube([[119, 172], [119.5, 220], [119, 270], [118.5, 283]], [[8, 9], [7.4, 7.4], [5.6, 5.6], [4.6, 4.6], [5.4, 5.4], [4.4, 4.4], [5, 5]]),
+  hl: buildTube([[82, 186], [81, 226], [81, 268], [81, 278]], [[7, 7], [5, 5], [4.4, 4.4], [4.2, 4.2]]),
+  hr: buildTube([[109, 188], [108, 226], [107.5, 268], [107.5, 278]], [[7, 7], [5, 5], [4.4, 4.4], [4.2, 4.2]]),
 }
 const F_LEG_SPOTS = tubeScatter(83, 5, 0.04, 0.6, 0.4, 0.6)
 
@@ -304,40 +311,40 @@ function FrontHorse({ ctx }: { ctx: Ctx }) {
   return (
     <g>
       <path d={F.tail} fill={p.mane} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
-      {leg(F_LEGS.hl, 'fhl', true, 79, 277)}
-      {leg(F_LEGS.hr, 'fhr', true, 106.5, 277)}
+      {leg(F_LEGS.hl, 'fhl', true, 81, 279)}
+      {leg(F_LEGS.hr, 'fhr', true, 107.5, 279)}
       <Skin id="fbody" d={F.body} ctx={ctx}>
         {pat === 'leopardo' && F_SPOTS.map((s, i) => <Spot key={i} at={[s.x, s.y]} r={s.r} seed={s.seed} fill={p.spot} />)}
         {pat === 'pio' && <path d={blob(5, 96, 160, 22, 16)} fill={p.patch} />}
         {pat === 'appaloosa' && <path d="M 50 100 L 76 100 C 66 120 64 140 70 160 L 50 160 Z M 162 100 L 136 100 C 146 120 148 140 142 160 L 162 160 Z" fill={p.white} />}
-        <path d="M 50 156 C 70 176 142 176 162 156 L 162 200 L 50 200 Z" fill={p.shade} opacity={0.5} />
-        <path d="M 50 110 C 58 140 62 160 74 186 L 50 186 Z M 162 110 C 154 140 150 160 138 186 L 162 186 Z" fill={p.shade} opacity={0.45} />
+        <path d="M 60 160 C 80 176 132 176 152 160 L 152 200 L 60 200 Z" fill={p.shade} opacity={0.5} />
+        <path d="M 60 110 C 70 140 72 160 82 188 L 60 188 Z M 152 110 C 142 140 140 160 130 188 L 152 188 Z" fill={p.shade} opacity={0.45} />
       </Skin>
       {!ctx.icon && <path d={F.chest} fill="none" stroke={p.line} strokeWidth={1.1} strokeLinecap="round" />}
-      {leg(F_LEGS.l, 'fl', false, 91, 281)}
-      {leg(F_LEGS.r, 'fr', false, 121, 281)}
+      {leg(F_LEGS.l, 'fl', false, 93.5, 283)}
+      {leg(F_LEGS.r, 'fr', false, 118.5, 283)}
       <Skin id="fneck" d={F.neck} ctx={ctx}>
         {pat === 'leopardo' && F_NECK_SPOTS.map((s, i) => <Spot key={i} at={[s.x, s.y]} r={s.r} seed={s.seed} fill={p.spot} />)}
         {pat === 'pio' && <path d={blob(13, 114, 96, 9, 12)} fill={p.patch} />}
-        <path d="M 80 104 L 132 104 L 132 116 L 80 116 Z" fill={p.shade} opacity={0.45} />
+        <path d="M 84 100 L 128 100 L 128 116 L 84 116 Z" fill={p.shade} opacity={0.4} />
       </Skin>
       <path d={F.mane} fill={p.mane} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
       <path d={F.earL} fill={p.coat} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
       <path d={F.earR} fill={p.coat} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
-      {!ctx.icon && <path d="M 95 39 C 93.5 34 93.5 29 94 25.5 C 97 29 98.6 33 98.8 37.5 Z M 117 39 C 118.5 34 118.5 29 118 25.5 C 115 29 113.4 33 113.2 37.5 Z" fill={p.earIn} />}
+      {!ctx.icon && <path d="M 96.4 40 C 95 35 94.8 30.5 95.4 26.5 C 98.4 30 100 34 100.2 38.5 Z M 115.6 40 C 117 35 117.2 30.5 116.6 26.5 C 113.6 30 112 34 111.8 38.5 Z" fill={p.earIn} />}
       <Skin id="fhead" d={F.head} ctx={ctx}>
         {pat === 'leopardo' && F_HEAD_SPOTS.map((s, i) => <Spot key={i} at={[s.x, s.y]} r={s.r} seed={s.seed} fill={p.spot} />)}
         <path d={F.muzzle} fill={`url(#${uid}-fmuz)`} />
         {coat.careto && <path d={F.careto} fill={p.white} />}
-        <path d="M 86 44 C 92 60 94 80 98 106 L 86 106 Z" fill={p.shade} opacity={0.45} />
+        <path d="M 88 44 C 93 60 95 80 99 106 L 88 106 Z" fill={p.shade} opacity={0.4} />
       </Skin>
-      <path d="M 101.5 95 C 99 96 98.5 99 100.5 100.5 M 110.5 95 C 113 96 113.5 99 111.5 100.5" fill="none" stroke={p.line} strokeWidth={ctx.icon ? 3 : 1.8} strokeLinecap="round" />
+      <path d="M 102 96 C 99.6 97 99.2 100 101 101.4 M 110 96 C 112.4 97 112.8 100 111 101.4" fill="none" stroke={p.line} strokeWidth={ctx.icon ? 3 : 1.8} strokeLinecap="round" />
       <g className="hz-eye">
-        <ellipse cx="95.6" cy="61" rx="2.6" ry="3" fill={p.eye} />
-        <ellipse cx="116.4" cy="61" rx="2.6" ry="3" fill={p.eye} />
-        {!ctx.icon && <><circle cx="96.4" cy="60" r="0.8" fill="#fff" /><circle cx="117.2" cy="60" r="0.8" fill="#fff" /></>}
+        <ellipse cx="96.2" cy="61" rx="2.4" ry="2.8" fill={p.eye} />
+        <ellipse cx="115.8" cy="61" rx="2.4" ry="2.8" fill={p.eye} />
+        {!ctx.icon && <><circle cx="97" cy="60" r="0.8" fill="#fff" /><circle cx="116.6" cy="60" r="0.8" fill="#fff" /></>}
       </g>
-      <path d="M 92.2 58.5 C 93.5 56.2 97 56 99 58 M 119.8 58.5 C 118.5 56.2 115 56 113 58" fill="none" stroke={p.line} strokeWidth={1.2} strokeLinecap="round" />
+      <path d="M 93 58.3 C 94.2 56.2 97.6 56 99.4 58 M 119 58.3 C 117.8 56.2 114.4 56 112.6 58" fill="none" stroke={p.line} strokeWidth={1.2} strokeLinecap="round" />
       <path d={F.forelock} fill={p.mane} stroke={p.line} strokeWidth={sw * 0.8} strokeLinejoin="round" />
     </g>
   )
@@ -405,7 +412,7 @@ function Emote({ e, t, rig }: { e: EmoteDef; t: number; rig: Rig }) {
 
 // ─── timeline ───────────────────────────────────────────────────────────────
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
-function poseAt(id: string, t: number, still: boolean): Pose {
+export function poseAt(id: string, t: number, still: boolean): Pose {
   const a = HORSE_ANIMATIONS.find(x => x.id === id)
   if (!a) return POSES.stand
   const keyPose = (i: number) => {
@@ -505,7 +512,7 @@ export function HorseFigure({
           <stop offset="0.45" stopColor={p.points} stopOpacity="0.72" />
           <stop offset="1" stopColor={p.points} stopOpacity="1" />
         </linearGradient>
-        <linearGradient id={`${uid}-fmuz`} gradientUnits="userSpaceOnUse" x1="0" y1="78" x2="0" y2="100">
+        <linearGradient id={`${uid}-fmuz`} gradientUnits="userSpaceOnUse" x1="0" y1="70" x2="0" y2="102">
           <stop offset="0" stopColor={p.points} stopOpacity="0" />
           <stop offset="0.5" stopColor={p.points} stopOpacity="0.7" />
           <stop offset="1" stopColor={p.points} stopOpacity="0.95" />

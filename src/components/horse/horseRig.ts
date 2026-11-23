@@ -244,6 +244,10 @@ export interface Pose {
   front: number
   /** Eyes closed 0..1. */
   sleepy: number
+  /** Neck length multiplier (lets the head reach the grass). */
+  neckS: number
+  /** > 0.5 draws the near legs over the torso (folded legs when lying). */
+  legsFront: number
 }
 
 const STAND: Pose = {
@@ -255,7 +259,7 @@ const STAND: Pose = {
   ff: [-8, -3, -3.5, 18, 0],
   hn: [6.8, -22.2, 1.2, 20, 0],
   hf: [10, -28, 6, 22, 0],
-  gl: 1, lift: 0, wind: 0, front: 0, sleepy: 0,
+  gl: 1, lift: 0, wind: 0, front: 0, sleepy: 0, neckS: 1, legsFront: 0,
 }
 
 export const POSES = {
@@ -263,70 +267,72 @@ export const POSES = {
   /** Comiendo — head to the grass. */
   graze: {
     ...STAND,
-    body: { x: 104, y: 145, rot: 4, sx: 1 },
-    neck: [160, 128, 98, 70],
-    head: 62, ears: 14,
-    tail: [-22, 0, 6, 10],
-    fn: [-2, 6, 4, 12, 0], ff: [-14, -8, -6, 6, 0],
+    body: { x: 96, y: 145, rot: 9, sx: 1 },
+    neck: [90, 30, 6, -2], neckS: 1.62,
+    head: 44, ears: 16,
+    tail: [-16, 0, 4, 6],
+    fn: [8, 10, 6, 18, 0], ff: [-4, -2, -2, 16, 0],
+    hn: [0, -26, -2, 18, 0], hf: [4, -30, 2, 20, 0],
   },
   grazeChew: {
     ...STAND,
-    body: { x: 104, y: 145, rot: 4, sx: 1 },
-    neck: [160, 129, 99, 72],
-    head: 58, jaw: 0.35, ears: 8,
-    tail: [-34, -12, -2, 2],
-    fn: [-2, 6, 4, 12, 0], ff: [-14, -8, -6, 6, 0],
+    body: { x: 96, y: 145, rot: 9, sx: 1 },
+    neck: [91, 32, 8, 0], neckS: 1.62,
+    head: 40, jaw: 0.3, ears: 8,
+    tail: [-18, -4, 0, 2],
+    fn: [8, 10, 6, 18, 0], ff: [-4, -2, -2, 16, 0],
+    hn: [0, -26, -2, 18, 0], hf: [4, -30, 2, 20, 0],
   },
   /** Se alza — rears on the hind legs. */
   rear: {
     ...STAND,
-    body: { x: 104, y: 120, rot: -48, sx: 1 },
-    neck: [196, 186, 174, 166],
-    head: -26, jaw: 0.6, ears: -6,
-    tail: [-12, -18, -4, 4],
-    fn: [52, 128, 0, -20, -30],
-    ff: [40, 112, -16, -30, -40],
-    hn: [-24, -40, 4, 24, 0],
-    hf: [-14, -30, 10, 26, 0],
+    body: { x: 92, y: 120, rot: -50, sx: 1 },
+    neck: [196, 186, 176, 170],
+    head: -20, jaw: 0.5, ears: -6,
+    tail: [-6, -4, 2, 8],
+    fn: [60, 140, 10, -10, -20],
+    ff: [44, 120, -10, -30, -40],
+    hn: [-14, -56, 8, 28, 0],
+    hf: [-6, -48, 14, 30, 0],
     wind: 0.2,
   },
   /** Correr — flying gallop, legs fully extended (as the reference). */
   gallopA: {
     ...STAND,
-    body: { x: 108, y: 140, rot: -3, sx: 1.06 },
-    neck: [170, 140, 122, 116],
-    head: -34, ears: 18,
-    tail: [-72, -88, -96, -102],
-    fn: [30, 62, 76, 96, 70],
-    ff: [22, 48, 60, 84, 60],
-    hn: [-36, -62, -74, -92, -60],
-    hf: [-30, -54, -66, -84, -50],
-    gl: 0, lift: -24, wind: 1,
+    body: { x: 104, y: 182, rot: -2, sx: 1.08 },
+    neck: [150, 132, 124, 120],
+    head: -30, ears: 20,
+    tail: [-78, -86, -92, -96],
+    fn: [36, 58, 62, 74, 70],
+    ff: [-16, -8, -22, -6, 0],
+    hn: [-28, -56, -42, -32, -20],
+    hf: [-18, -46, -30, -22, -12],
+    gl: 0, lift: 0, wind: 1,
   },
   /** Gallop gathering phase (legs under the body). */
   gallopB: {
     ...STAND,
-    body: { x: 108, y: 140, rot: 4, sx: 1.0 },
-    neck: [176, 152, 134, 128],
-    head: -22, ears: 18,
-    tail: [-64, -80, -90, -96],
-    fn: [-28, -8, -78, -40, -30],
-    ff: [-12, 10, -40, -10, 0],
-    hn: [40, 10, 14, 30, 10],
-    hf: [30, 2, 2, 20, 0],
-    gl: 0, lift: -8, wind: 1,
+    body: { x: 104, y: 168, rot: 3, sx: 1.02 },
+    neck: [160, 142, 132, 128],
+    head: -22, ears: 20,
+    tail: [-70, -80, -88, -92],
+    fn: [-10, 34, -46, -20, -10],
+    ff: [2, 12, 2, 14, 0],
+    hn: [30, 0, 22, 34, 20],
+    hf: [22, -12, 12, 24, 10],
+    gl: 0, lift: 0, wind: 1,
   },
   /** Descansa — lying down, legs folded. */
   rest: {
     ...STAND,
-    body: { x: 104, y: 246, rot: 0, sx: 1 },
-    neck: [178, 168, 160, 160],
-    head: -4, ears: 6,
-    tail: [-62, -86, -96, -94],
-    fn: [-50, 96, -88, -96, -90],
-    ff: [-40, 100, -80, -90, -90],
-    hn: [66, -96, 104, 100, 80],
-    hf: [60, -92, 98, 96, 80],
+    body: { x: 104, y: 238, rot: 0, sx: 1 },
+    neck: [180, 170, 162, 160],
+    head: -2, ears: 6,
+    tail: [-70, -88, -96, -94],
+    fn: [-20, 88, -92, -96, -90],
+    ff: [-10, 92, -86, -90, -90],
+    hn: [70, -40, 92, 100, 90],
+    hf: [64, -36, 90, 96, 90],
     gl: 0, lift: 0, sleepy: 0.6,
   },
   /** Relincha — head up, mouth open, paws. */
@@ -335,31 +341,31 @@ export const POSES = {
     body: { x: 104, y: 145, rot: -4, sx: 1 },
     neck: [188, 178, 172, 170],
     head: -34, jaw: 1, ears: -8,
-    tail: [-44, -24, -10, -4],
+    tail: [-40, -20, -6, 0],
     fn: [24, 70, -28, -20, -20],
   },
-  /** Going down / getting up: front legs folded, hind legs still standing. */
+  /** Going down / getting up: knees on the ground, hind legs still standing. */
   kneel: {
     ...STAND,
-    body: { x: 106, y: 196, rot: 12, sx: 1 },
-    neck: [176, 162, 152, 150],
-    head: 6,
-    fn: [-50, 96, -88, -96, -90],
-    ff: [-40, 100, -80, -90, -90],
-    hn: [30, -50, -6, 14, 0],
-    hf: [30, -46, 0, 16, 0],
+    body: { x: 106, y: 196, rot: 18, sx: 1 },
+    neck: [168, 156, 150, 150],
+    head: 10,
+    fn: [-15, 0, -92, -95, -90],
+    ff: [-10, 4, -88, -92, -90],
+    hn: [55, -50, 20, 30, 0],
+    hf: [58, -46, 24, 32, 0],
     gl: 0,
   },
   rise: {
     ...STAND,
-    body: { x: 108, y: 200, rot: -10, sx: 1 },
-    neck: [186, 172, 164, 162],
+    body: { x: 108, y: 214, rot: -8, sx: 1 },
+    neck: [186, 174, 166, 164],
     head: -8,
-    fn: [10, 40, -4, 10, 0],
-    ff: [14, 46, 0, 12, 0],
-    hn: [66, -96, 104, 100, 80],
-    hf: [60, -92, 98, 96, 80],
-    gl: 0,
+    fn: [20, 30, 0, 14, 0],
+    ff: [10, 20, -4, 12, 0],
+    hn: [64, -100, 96, 96, 80],
+    hf: [58, -96, 92, 94, 80],
+    gl: 0, legsFront: 1,
   },
   front: { ...STAND, front: 1 },
 } satisfies Record<string, Pose>
@@ -375,7 +381,7 @@ export function lerpPose(a: Pose, b: Pose, t: number): Pose {
     tail: LA(a.tail, b.tail),
     fn: LA(a.fn, b.fn), ff: LA(a.ff, b.ff), hn: LA(a.hn, b.hn), hf: LA(a.hf, b.hf),
     gl: L(a.gl, b.gl), lift: L(a.lift, b.lift), wind: L(a.wind, b.wind),
-    front: L(a.front, b.front), sleepy: L(a.sleepy, b.sleepy),
+    front: L(a.front, b.front), sleepy: L(a.sleepy, b.sleepy), neckS: L(a.neckS, b.neckS), legsFront: L(a.legsFront, b.legsFront),
   }
 }
 
@@ -506,7 +512,7 @@ export function solve(p: Pose): Rig {
   const hf = buildLeg(toWorld(ANCHOR.hf), p.hf, HIND_LEG)
   const lowest = Math.max(fn.bottom, hn.bottom)
   const dy = p.gl * (GROUND - lowest) + p.lift
-  const neckPts = fk(toWorld(ANCHOR.neck), p.neck, NECK.len)
+  const neckPts = fk(toWorld(ANCHOR.neck), p.neck, NECK.len.map(l => l * p.neckS))
   const neck = buildTube(neckPts, NECK.w)
   const at = neckPts[neckPts.length - 1]
   return {
