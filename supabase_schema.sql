@@ -12,8 +12,9 @@ create table breeds (
   name text not null unique
 );
 insert into breeds (name) values
-  ('Appaloosa'),('PRE'),('PRD'),('Anglo-Árabe'),('Árabe'),
+  ('Appaloosa'),('PRE'),('Hispanoárabe'),('Anglo-Árabe'),('Árabe'),
   ('Quarter Horse'),('Paint Horse'),('Lusitano'),('Hannoveriano'),
+  ('Trakehner'),('Knabstrupper'),('Centroeuropeo'),('Cruzado'),('3 Sangres'),
   ('Otra');
 
 -- ── ANIMALS ──────────────────────────────────────────────────
@@ -323,7 +324,7 @@ create table tasks (
   status       text not null default 'pendiente'
                  check (status in ('pendiente','completada')),
   origin       text not null default 'manual'
-                 check (origin in ('manual','auto_parto','auto_herrado','auto_vacuna','auto_agua','auto_comida')),
+                 check (origin in ('manual','auto_parto','auto_herrado','auto_vacuna')),
   animal_id    uuid references animals(id),
   priority     text check (priority in ('alta','media','baja')),
   completed_at timestamptz,

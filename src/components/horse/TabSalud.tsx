@@ -17,6 +17,7 @@ const VACCINE_LABELS: Record<VacunaType, string> = {
   tetanos:         'Tétanos',
   desparasitacion: 'Desparasitación',
   rinoneumonitis:  'Rinoneumonitis',
+  nilo:            'Fiebre del Nilo Occidental',
   otro:            'Otro',
 }
 
@@ -25,6 +26,7 @@ const VACCINE_INTERVALS: Partial<Record<VacunaType, number>> = {
   tetanos:         24,
   desparasitacion: 3,
   rinoneumonitis:  6,
+  nilo:            12,
 }
 
 const EPISODE_STATUS_CONFIG: Record<EpisodeStatus, { label: string; color: string; bg: string }> = {

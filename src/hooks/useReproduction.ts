@@ -184,9 +184,16 @@ export function useUpsertSemenShipping() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (values: Omit<SemenShipping, 'id' | 'created_at'> & { id?: string }) => {
-      const { data, error } = values.id
-        ? await supabase.from('semen_shippings').update(values).eq('id', values.id).select().single()
-        : await supabase.from('semen_shippings').insert(values).select().single()
+      // Upsert on the natural key so a stale/missing `id` can never cause a
+      // unique-violation. Undefined fields are dropped from the JSON payload,
+      // so existing columns (dates/result) are not overwritten.
+      const { id: _id, ...rest } = values
+      void _id
+      const { data, error } = await supabase
+        .from('semen_shippings')
+        .upsert(rest, { onConflict: 'semen_sale_id,attempt_number' })
+        .select()
+        .single()
       if (error) throw error
       return data as SemenShipping
     },
@@ -677,7 +684,7 @@ export async function createAutoTask(values: {
   description?: string
   due_date?: string
   animal_id?: string
-  origin: 'auto_herrado' | 'auto_vacuna' | 'auto_parto' | 'auto_agua' | 'auto_comida'
+  origin: 'auto_herrado' | 'auto_vacuna' | 'auto_parto'
 }) {
   const { error } = await supabase.from('tasks').insert({
     ...values,

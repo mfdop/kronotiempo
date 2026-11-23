@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   useMeadows,
@@ -9,8 +9,6 @@ import {
   statusTextColor,
   type MeadowWithLogs,
 } from '../hooks/useMeadows'
-import { useAuth } from '../hooks/useAuth'
-import { createAutoTask } from '../hooks/useReproduction'
 import { BottomSheet, ConfirmToast, LoadingScreen, EmptyState } from '../components/ui'
 import { MEADOW_COLORS } from '../lib/constants'
 import type { ParcelaStatus } from '../types'
@@ -240,35 +238,12 @@ function MeadowCard({
 type ConfirmState = { open: boolean; meadowId: string; type: 'water' | 'food'; label: string }
 
 export default function ParcelasPage() {
-  const { user }   = useAuth()
   const navigate   = useNavigate()
   const { data: meadows, isLoading } = useMeadows()
   const logWater   = useLogWater()
   const logFood    = useLogFood()
   const [confirm, setConfirm]     = useState<ConfirmState>({ open: false, meadowId: '', type: 'water', label: '' })
   const [sheetOpen, setSheetOpen] = useState(false)
-  const autoFired  = useRef<Set<string>>(new Set())
-
-  // Auto-create tasks when parcela reaches ámbar/rojo
-  useEffect(() => {
-    if (!meadows || !user) return
-    meadows.forEach(m => {
-      const ws = computeWaterFoodStatus(m.meadow_water_logs)
-      const fs = computeWaterFoodStatus(m.meadow_food_logs)
-
-      const wKey = `${m.id}-water-${ws.status}`
-      if ((ws.status === 'warn' || ws.status === 'due') && !autoFired.current.has(wKey)) {
-        autoFired.current.add(wKey)
-        createAutoTask({ owner_id: user.id, title: `Agua: ${m.name}`, origin: 'auto_agua' })
-      }
-      const fKey = `${m.id}-food-${fs.status}`
-      if ((fs.status === 'warn' || fs.status === 'due') && !autoFired.current.has(fKey)) {
-        autoFired.current.add(fKey)
-        createAutoTask({ owner_id: user.id, title: `Comida: ${m.name}`, origin: 'auto_comida' })
-      }
-    })
-  }, [meadows, user])
-
   const handleConfirm = () => {
     if (!confirm.meadowId) return
     if (confirm.type === 'water') logWater.mutate(confirm.meadowId)

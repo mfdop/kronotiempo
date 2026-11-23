@@ -1,5 +1,5 @@
 import { errMsg } from '../../lib/errors'
-import { useState, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
   useSemenSales, useCreateSemenSale, useUpdateSemenSale, useUpsertSemenShipping,
   useDeleteSemenSale,
@@ -302,6 +302,12 @@ function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChan
   const upsert = useUpsertSemenShipping()
   const [dateInput, setDateInput] = useState(shipping?.estimated_date ?? '')
   const [editDate, setEditDate]   = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  // keep the input in sync with the persisted value
+  useEffect(() => {
+    if (!editDate) setDateInput(shipping?.estimated_date ?? '')
+  }, [shipping?.estimated_date, editDate])
 
   const ordinal = n === 1 ? '1.er' : n === 2 ? '2.º' : '3.er'
 
@@ -315,26 +321,26 @@ function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChan
 
   const setResult = (result: ShippingResult) => {
     onResultChange(result)
+    setSaveError(null)
     upsert.mutate({
-      id:             shipping?.id,
       semen_sale_id:  saleId,
       attempt_number: n,
       result,
-      estimated_date: shipping?.estimated_date,
-      actual_date:    shipping?.actual_date,
-    })
+    }, { onError: e => setSaveError(errMsg(e)) })
   }
 
   const saveDate = () => {
     if (!dateInput) return
+    setSaveError(null)
     upsert.mutate({
-      id:             shipping?.id,
       semen_sale_id:  saleId,
       attempt_number: n,
       result:         activeResult ?? 'espera',
       estimated_date: dateInput,
+    }, {
+      onSuccess: () => setEditDate(false),
+      onError:   e => setSaveError(errMsg(e)),
     })
-    setEditDate(false)
   }
 
   const fakeShipping = activeResult !== undefined
@@ -379,6 +385,9 @@ function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChan
                 OK
               </button>
             </div>
+          )}
+          {saveError && (
+            <p className="text-[12px] px-4 py-2" style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{saveError}</p>
           )}
           <div className="flex gap-2 px-4 py-2.5">
             {RESULTS.map(({ v, label, color }) => {
@@ -570,13 +579,15 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [pendingOnly, setPendingOnly]   = useState(false)
   const [addOpen, setAddOpen]           = useState(false)
-  const [selected, setSelected]         = useState<SaleWithData | null>(null)
+  const [selectedId, setSelectedId]     = useState<string | null>(null)
 
   const { data: allSales = [], isLoading } = useSemenSales(animal.id)
 
   if (isLoading) return <LoadingScreen />
 
   const sales = allSales as SaleWithData[]
+  // derive from fresh query data so the detail sheet never holds a stale snapshot
+  const selected = selectedId ? sales.find(s => s.id === selectedId) ?? null : null
 
   // Available years in the data (always show current year as option)
   const years = [...new Set([currentYear, ...sales.map(s => s.year)])].sort((a, b) => b - a)
@@ -690,7 +701,7 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
 
             return (
               <button key={sale.id}
-                      onClick={() => setSelected(sale)}
+                      onClick={() => setSelectedId(sale.id)}
                       className="w-full text-left px-4 py-3 active:bg-[#F5E8EC]"
                       style={{ borderBottom: i < filtered.length - 1 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
                 {/* Top: avatar + name + price + date */}
@@ -758,7 +769,7 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
                     stallionId={animal.id} onSaved={() => {}} />
 
       {selected && (
-        <SaleDetailSheet open={!!selected} onClose={() => setSelected(null)}
+        <SaleDetailSheet open={!!selected} onClose={() => setSelectedId(null)}
                          sale={selected} stallionId={animal.id} />
       )}
     </div>

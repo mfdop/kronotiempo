@@ -955,6 +955,14 @@ export default function TabVientre({ animal }: { animal: Animal }) {
                     </span>
                   )}
                 </div>
+                {p.actual_birth_date && (() => {
+                  const g = differenceInDays(parseISO(p.actual_birth_date), parseISO(p.covered_date))
+                  return g > 0 ? (
+                    <p className="text-[11px] mt-0.5" style={{ color: '#6B5555' }}>
+                      Gestación real: {g} días
+                    </p>
+                  ) : null
+                })()}
                 {p.expected_birth_date && p.result === 'gestante' && (
                   <p className="text-[11px] mt-0.5" style={{ color: '#1A4F7A' }}>
                     Parto est. {format(parseISO(p.expected_birth_date), 'd MMM yyyy', { locale: es })}

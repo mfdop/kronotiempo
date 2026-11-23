@@ -78,6 +78,12 @@ export const LOCI_SECONDARY = [
   { key: 'sabino',  label: 'Sabino (SB1)',  options: ['N/N','N/SB1'] },
 ] as const
 
+// ─── BREEDS ──────────────────────────────────────────────────────────────────
+export const BREEDS = [
+  'Appaloosa','PRE','Hispanoárabe','Anglo-Árabe','Árabe','Quarter Horse','Paint Horse',
+  'Lusitano','Hannoveriano','Trakehner','Knabstrupper','Centroeuropeo','Cruzado','3 Sangres','Otra',
+] as const
+
 // ─── ANIMAL SEX LABELS ───────────────────────────────────────────────────────
 export const SEX_LABELS: Record<string, string> = {
   semental: 'Semental',
