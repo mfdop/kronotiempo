@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Pregnancy, SemenSale, SemenShipping, PregnancyInterested, PregnancySale, ShoeingRecord, HealthEpisode, Vaccine, AnimalDocument, AnimalGenetics, MaintenanceFee, MaintenanceEntry, Client, ClientSummary, ClientTagType } from '../types'
+import { summarizePayments } from '../lib/payments'
+import type { Pregnancy, SemenSale, SemenShipping, PregnancySale, Payment, ShoeingRecord, HealthEpisode, Vaccine, AnimalDocument, AnimalGenetics, MaintenanceFee, MaintenanceEntry, Client, ClientSummary, ClientTagType } from '../types'
 
 // ─── PREGNANCIES ─────────────────────────────────────────────
 export function usePregnancies(mareId: string | undefined) {
@@ -56,41 +57,6 @@ export function useUpdatePregnancy() {
   })
 }
 
-// ─── PREGNANCY INTERESTED ────────────────────────────────────
-export function usePregnancyInterested(pregnancyId: string | undefined) {
-  return useQuery({
-    queryKey: ['preg-interested', pregnancyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('pregnancy_interested')
-        .select('*, clients(*)')
-        .eq('pregnancy_id', pregnancyId)
-        .order('created_at')
-      if (error) throw error
-      return data
-    },
-    enabled: !!pregnancyId,
-  })
-}
-
-export function useCreatePregnancyInterested() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (values: Omit<PregnancyInterested, 'id' | 'created_at'>) => {
-      const { data, error } = await supabase
-        .from('pregnancy_interested')
-        .insert(values)
-        .select()
-        .single()
-      if (error) throw error
-      return data
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['preg-interested', vars.pregnancy_id] })
-    },
-  })
-}
-
 // ─── PREGNANCY SALE (vientre) ─────────────────────────────────
 export function usePregnancySale(pregnancyId: string | undefined) {
   return useQuery({
@@ -98,11 +64,11 @@ export function usePregnancySale(pregnancyId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('pregnancy_sales')
-        .select('*, clients(*)')
+        .select('*, clients(*), payments(*)')
         .eq('pregnancy_id', pregnancyId)
         .maybeSingle()
       if (error) throw error
-      return data as (PregnancySale & { clients: unknown }) | null
+      return data as (PregnancySale & { clients: unknown; payments: Payment[] }) | null
     },
     enabled: !!pregnancyId,
   })
@@ -120,7 +86,43 @@ export function useUpsertPregnancySale() {
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['preg-sale', vars.pregnancy_id] })
+      qc.invalidateQueries({ queryKey: ['preg-sales-mare'] })
+      qc.invalidateQueries({ queryKey: ['client-summaries'] })
+      qc.invalidateQueries({ queryKey: ['client-transactions'] })
     },
+  })
+}
+
+// ─── PAYMENTS (installments) ──────────────────────────────────
+function invalidatePaymentQueries(qc: ReturnType<typeof useQueryClient>) {
+  for (const k of ['preg-sale', 'preg-sales-mare', 'semen-sales', 'client-summaries', 'client-transactions']) {
+    qc.invalidateQueries({ queryKey: [k] })
+  }
+}
+
+export function useCreatePayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: {
+      pregnancy_sale_id?: string; semen_sale_id?: string
+      amount: number; paid_date: string; method?: string; notes?: string
+    }) => {
+      const { data, error } = await supabase.from('payments').insert(values).select().single()
+      if (error) throw error
+      return data as Payment
+    },
+    onSuccess: () => invalidatePaymentQueries(qc),
+  })
+}
+
+export function useDeletePayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('payments').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => invalidatePaymentQueries(qc),
   })
 }
 
@@ -131,13 +133,13 @@ export function useSemenSales(stallionId: string | undefined, year?: number) {
     queryFn: async () => {
       let q = supabase
         .from('semen_sales')
-        .select('*, clients(*), semen_shippings(*)')
+        .select('*, clients(*), semen_shippings(*), payments(*)')
         .eq('stallion_id', stallionId)
         .order('created_at', { ascending: false })
       if (year) q = q.eq('year', year)
       const { data, error } = await q
       if (error) throw error
-      return data as (SemenSale & { clients: unknown; semen_shippings: SemenShipping[] })[]
+      return data as (SemenSale & { clients: unknown; semen_shippings: SemenShipping[]; payments: Payment[] })[]
     },
     enabled: !!stallionId,
   })
@@ -455,10 +457,10 @@ export function usePregnancySalesForMare(mareId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('pregnancy_sales')
-        .select('*, pregnancies!inner(id, mare_id, covered_date, result, actual_birth_date), clients(*)')
+        .select('*, pregnancies!inner(id, mare_id, covered_date, result, actual_birth_date), clients(*), payments(*)')
         .eq('pregnancies.mare_id', mareId)
       if (error) throw error
-      return data as (PregnancySale & { pregnancies: { id: string; mare_id: string; covered_date: string; result: string; actual_birth_date?: string }; clients: unknown })[]
+      return data as (PregnancySale & { pregnancies: { id: string; mare_id: string; covered_date: string; result: string; actual_birth_date?: string }; clients: unknown; payments: Payment[] })[]
     },
     enabled: !!mareId,
   })
@@ -562,36 +564,30 @@ export function useClientSummaries() {
         .from('clients')
         .select(`
           *,
-          semen_sales(id, agreed_price, deposit_amount, final_amount, payment_status),
-          pregnancy_sales(id, agreed_price, deposit_amount, final_amount, payment_status),
-          pregnancy_interested(id)
+          semen_sales(id, agreed_price, payments(amount)),
+          pregnancy_sales(id, agreed_price, payments(amount))
         `)
         .order('name')
       if (error) throw error
 
-      type RawSale = { id: string; agreed_price: number; deposit_amount?: number; final_amount?: number; payment_status: string }
+      type RawSale = { id: string; agreed_price: number; payments?: { amount: number }[] }
 
       return (data ?? []).map(client => {
         const semenSales: RawSale[] = (client.semen_sales ?? []) as RawSale[]
         const pregSales:  RawSale[] = (client.pregnancy_sales ?? []) as RawSale[]
-        const interested: { id: string }[] = (client.pregnancy_interested ?? []) as { id: string }[]
 
         const tags: ClientTagType[] = []
         if (semenSales.length > 0) tags.push('cubricion')
         if (pregSales.length > 0)  tags.push('vientre')
-        if (interested.length > 0) tags.push('interesado')
 
         const allT = [...semenSales, ...pregSales]
         const total_operations = allT.length
-        const total_paid    = allT.reduce((s, t) => s + (t.deposit_amount ?? 0) + (t.final_amount ?? 0), 0)
-        const total_pending = allT.reduce((s, t) => {
-          if (t.payment_status === 'completo') return s
-          const paid = (t.deposit_amount ?? 0) + (t.final_amount ?? 0)
-          return s + Math.max(0, t.agreed_price - paid)
-        }, 0)
+        const sums = allT.map(t => summarizePayments(t.agreed_price, t.payments))
+        const total_paid    = sums.reduce((s, x) => s + x.paid, 0)
+        const total_pending = sums.reduce((s, x) => s + x.pending, 0)
 
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { semen_sales: _s, pregnancy_sales: _p, pregnancy_interested: _i, ...clientData } = client
+        const { semen_sales: _s, pregnancy_sales: _p, ...clientData } = client
         return { ...clientData, tags, total_operations, total_paid, total_pending } as ClientSummary
       })
     },
@@ -620,15 +616,13 @@ export function useClientTransactions(clientId: string | undefined) {
   return useQuery({
     queryKey: ['client-transactions', clientId],
     queryFn: async () => {
-      const [{ data: semSales }, { data: pregSales }, { data: interested }] = await Promise.all([
-        supabase.from('semen_sales').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
-        supabase.from('pregnancy_sales').select('*, pregnancies!inner(id, mare_id)').eq('client_id', clientId).order('created_at', { ascending: false }),
-        supabase.from('pregnancy_interested').select('*, pregnancies!inner(id, mare_id)').eq('client_id', clientId).order('created_at', { ascending: false }),
+      const [{ data: semSales }, { data: pregSales }] = await Promise.all([
+        supabase.from('semen_sales').select('*, payments(*)').eq('client_id', clientId).order('created_at', { ascending: false }),
+        supabase.from('pregnancy_sales').select('*, pregnancies!inner(id, mare_id), payments(*)').eq('client_id', clientId).order('created_at', { ascending: false }),
       ])
       return {
         semSales:   (semSales   ?? []) as SemenSale[],
         pregSales:  (pregSales  ?? []) as PregnancySale[],
-        interested: (interested ?? []) as PregnancyInterested[],
       }
     },
     enabled: !!clientId,

@@ -10,7 +10,7 @@ export type AnimalStatus   = 'activo' | 'vendido' | 'fallecido' | 'cedido' | 'cu
 export type MontaType      = 'natural' | 'ia'
 export type PregnancyResult= 'gestante' | 'cria_viva' | 'aborto' | 'gemelar' | 'mortinato' | 'no_prenada'
 export type ShippingResult = 'prenez' | 'espera' | 'sin_prenez'
-export type PaymentStatus  = 'sin_reserva' | 'reserva' | 'completo'
+export type PaymentStatus  = 'sin_pagos' | 'parcial' | 'completo'   // derived from sum(payments) vs agreed_price
 export type EpisodeStatus  = 'activo' | 'resuelto' | 'cronico'
 export type DocType        = 'veterinario' | 'genetica' | 'certificado' | 'otro'
 export type HerradoType    = 'completo' | 'recorte' | 'perdida'
@@ -18,7 +18,7 @@ export type VacunaType     = 'gripe' | 'tetanos' | 'desparasitacion' | 'rinoneum
 export type ParcelaStatus  = 'ocupada' | 'libre' | 'descanso' | 'tratamiento'
 export type TaskStatus     = 'pendiente' | 'completada'
 export type TaskOrigin     = 'manual' | 'auto_parto' | 'auto_herrado' | 'auto_vacuna'
-export type ClientTagType  = 'cubricion' | 'vientre' | 'interesado' | 'vendedor'
+export type ClientTagType  = 'cubricion' | 'vientre' | 'vendedor'
 export type CoatBase       = 'negro' | 'castano' | 'alazan'
 export type CoatPattern    = 'lisa' | 'pio' | 'appaloosa'
 
@@ -166,24 +166,26 @@ export interface Pregnancy {
   created_at: string
 }
 
-export interface PregnancyInterested {
-  id: string
-  pregnancy_id: string
-  client_id: string
-  notes?: string
-  created_at: string
-}
-
 export interface PregnancySale {
   id: string
   pregnancy_id: string
   client_id: string
   agreed_price: number
-  deposit_amount?: number
-  final_amount?: number
-  payment_status: PaymentStatus
+  payments?: Payment[]        // embedded when queried with payments(*)
   delivery_date?: string
   notes?: string
+  created_at: string
+}
+
+export interface Payment {
+  id: string
+  owner_id: string
+  pregnancy_sale_id?: string | null
+  semen_sale_id?: string | null
+  amount: number
+  paid_date: string
+  method?: string | null
+  notes?: string | null
   created_at: string
 }
 
@@ -197,9 +199,7 @@ export interface SemenSale {
   mare_chip?: string
   mare_ueln?: string
   agreed_price: number
-  deposit_amount?: number
-  final_amount?: number
-  payment_status: PaymentStatus
+  payments?: Payment[]        // embedded when queried with payments(*)
   year: number
   notes?: string
   created_at: string
@@ -301,15 +301,6 @@ export interface MaintenanceEntry {
   amount: number
   payment_status: 'pagado' | 'pendiente'
   paid_date?: string
-  created_at: string
-}
-
-// ─── PURCHASE INTERESTS (vientre buyers) ─────────────────────────────────────
-export interface PurchaseInterest {
-  id: string
-  pregnancy_id: string
-  client_id: string
-  notes?: string
   created_at: string
 }
 

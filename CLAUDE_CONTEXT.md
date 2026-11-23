@@ -35,7 +35,7 @@ Es un regalo personal. Sin intención comercial. Coste: solo el dominio.
 ## Ficha de cada animal (tabs internas, varían por sexo)
 - Info (todos) — editable inline
 - Genealogía (todos) — árbol 3 gen + edición con picker
-- **Vientre** (solo hembras) — embarazos, interesados, comprador
+- **Vientre** (solo hembras) — embarazos y comprador
 - **Cubriciones** (solo machos) — ventas de semen, envíos, pagos
 - Herrado (todos)
 - Salud (todos)
@@ -55,24 +55,23 @@ Es un regalo personal. Sin intención comercial. Coste: solo el dominio.
 - Identificadores únicos: teléfono O Instagram (uno de los dos obligatorio)
 - Si se intenta crear con teléfono/Instagram existente: error "Teléfono ya utilizado para XXXXX"
 - La ficha de cliente agrega automáticamente TODAS sus transacciones (cubriciones + vientres)
-- Tags automáticos según transacciones: Cubriciones, Vientre, Interesado, Vendedor
+- Tags automáticos según transacciones: Cubriciones, Vientre, Vendedor
 
 ## Cubriciones (ventas de semen) — COMPLEJO
-- Una venta tiene precio total = reserva + pago final
-- Hasta 3 envíos incluidos: 1º pago completo, 2º y 3º solo si no preña (sin coste extra)
+- Una venta tiene un precio acordado que se paga en N pagos (tabla `payments`)
+- Hasta 5 envíos (intentos): el siguiente se desbloquea si el anterior es sin_prenez (sin coste extra)
 - Estados de envío: prenez / espera / sin_prenez
 - Si sin_prenez → se desbloquea el siguiente envío automáticamente
 - Fecha estimada de envío → va al calendario iOS via .ics
-- Resumen financiero: cobrado real vs estimado (con reservas pendientes)
+- Resumen financiero: cobrado real (suma de pagos) vs precio acordado
 - Filtros: por año (selector dinámico) y "solo pendientes de preñez"
 
 ## Vientre (embarazos) — COMPLEJO
 - Cada embarazo tiene: tipo monta (natural/IA), padre, fechas, resultado
 - Resultado: gestante / cria_viva / aborto / gemelar / mortinato / no_prenada
 - Parto estimado = fecha cubrición + 340 días (auto-calculado)
-- Dentro de cada embarazo: tab Interesados + tab Comprador definitivo
-- Comprador: reserva + pago entrega, precio en tag verde en el header del embarazo
-- Se puede importar un interesado como comprador con un botón
+- Dentro de cada embarazo: tab Info + tab Comprador (se crea/selecciona con ClientPicker y queda como cliente normal)
+- Comprador: precio acordado + pagos parciales (PaymentsPanel); precio en tag del header del embarazo
 - Precio de venta del vientre SOLO aparece en Balance de la madre (no duplicar)
 
 ## Parcelas
@@ -80,8 +79,9 @@ Es un regalo personal. Sin intención comercial. Coste: solo el dominio.
 - Cada card: icono emoji elegible, barra color (low opacity), nombre, ha, nº animales
 - Contadores agua y comida: semáforo basado en media histórica automática
   - Verde: dentro de la media
-  - Ámbar: superada la mitad de la media → genera alerta en Agenda
-  - Rojo: superada la media completa → aparece como tarea "Hoy" en Agenda
+  - Ámbar: superada la mitad de la media
+  - Rojo: superada la media completa
+  - Solo semáforo visual en Parcelas; NO se generan tareas automáticas de agua/comida en Agenda
 - Pulsar contador → toast de confirmación → resetea a hoy + guarda en historial
 - Detalle parcela: info + ref catastral + historial agua + historial comida
 - Tab Animales dentro de parcela: lista + botón mover (elimina de la otra)
@@ -93,10 +93,8 @@ Es un regalo personal. Sin intención comercial. Coste: solo el dominio.
   - auto_parto: X días antes del parto estimado
   - auto_herrado: cuando se acerca fecha estimada siguiente herrado
   - auto_vacuna: cuando vence una vacuna
-  - auto_agua / auto_comida: cuando parcela llega a ámbar
-- Agua/comida en rojo → aparece en "Hoy". En ámbar → aparece en "Esta semana"
-- "Próximamente" NO muestra tareas de agua/comida
-- Botón "Importar a calendario" → genera .ics con tareas de la semana (sin agua/comida)
+- Ya no se generan tareas auto_agua / auto_comida (las antiguas que queden en BD se ocultan)
+- Botón "Importar a calendario" → genera .ics con tareas de la semana
 - Nota del día: texto libre, una por día, editable directamente en pantalla
 
 ## Genética de capas — lógica
@@ -137,6 +135,17 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ✅ Sesión 13: Azulejo pezuñas (T y-offset 631→611) + Historial de praderas popup en TabInfo
 - ✅ Post-sesión: vercel.json SPA rewrite (fix 404 en refresh), PWA icons actualizados (icon-192.png, icon-512.png), logo.png actualizado, seed_demo.sql + seed_demo_purge.sql creados
 - ✅ Sesión 14: Edición inline del embarazo en TabVientre (tab Info)
+- ✅ Sesión 15: Fases 1-3 de cambios (ver notas)
+
+## Notas sesión 15 (fases 1-3, migraciones en /migrations)
+- Fase 1 (77de13d): fix guardado fecha de envío de semen (upsert por semen_sale_id+attempt_number), razas, etiqueta UELN, vacuna West Nile, balance de semental (solo cubriciones), eliminadas las tareas automáticas de agua/comida.
+- Fase 2 (2ceeb76, migrations/002_phase2.sql): parcelas con `has_water`, media de comida aprendida, herrado solo completo/recorte/perdida con próximo a 90 días, hasta 5 envíos de semen, datos de la yegua en cubriciones (nacimiento, chip, UELN), locus PATN1, DNI en clientes.
+- Fase 3 (migrations/003_phase3.sql, destructiva, solo datos demo):
+  - Eliminado el concepto "Interesados" (tabla `pregnancy_interested`, hooks, tag 'interesado', chip y historial en Clientes). El comprador de un vientre se elige/crea en TabVientre con ClientPicker y es un cliente normal.
+  - Nueva tabla `payments` (pagos parciales de `pregnancy_sales` o `semen_sales`, check de exactamente un id de venta, RLS por owner_id). Se eliminan `deposit_amount`, `final_amount`, `payment_status` de ambas tablas de ventas (migrados a payments).
+  - Estado de pago DERIVADO (src/lib/payments.ts `summarizePayments`): sin_pagos (suma 0) / parcial / completo (suma >= precio acordado); pendiente = max(0, precio - suma).
+  - UI: `PaymentsPanel` (lista de pagos, pagado/pendiente/progreso, "+ Añadir pago", borrar con confirmación) en el comprador del vientre y en el detalle de cubrición; formularios de creación con "Pago inicial" opcional. Balance, Clientes (totales y filtro "Con deuda") y ClienteDetail leen de payments.
+  - seed_demo.sql / seed_demo_purge.sql actualizados al nuevo esquema.
 
 ## Notas sesión 14
 - TabVientre.tsx: `PregnancyDetailSheet` — añadido modo edición en el tab Info.
@@ -195,8 +204,8 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - ParcelasPage: lista cards con band color, emoji, contador animales, agua (días + semáforo), comida. ConfirmToast + auto-task auto_agua/auto_comida por sesión (ref guard)
 - ParcelasDetailPage: hero con emoji+color, tabs Info/Animales. Tab Info: big buttons agua/comida, historial 10 registros c/u, info editable. Tab Animales: lista con Azulejo, Mover (sheet destino), +Añadir (picker animales). EditMeadowSheet con color+emoji picker. Ruta: /parcelas/:id
 - useReproduction.ts: useClientSummaries (clients con semen_sales+pregnancy_sales+pregnancy_interested embed → tags+totales), useClientById, useClientTransactions (3 arrays paralelas)
-- ClientesPage: buscador en header granate, chips filtro (Todos/Cubriciones/Vientres/Interesados/Con deuda), cards con avatar inicial, tags de color, stats 3 columnas. Ruta: /clientes
-- ClienteDetailPage: hero con avatar inicial, tags chips, total cobrado/pendiente. Card contacto con tel (llamada directa), @instagram, ciudad, yeguada, notas. Historial unificado con icono por tipo (💉cubricion, 🐴vientre, ⭐interesado), importe, badge pago, fecha. Ruta: /clientes/:id
+- ClientesPage: buscador en header granate, chips filtro (Todos/Cubriciones/Vientres/Con deuda), cards con avatar inicial, tags de color, stats 3 columnas. Ruta: /clientes
+- ClienteDetailPage: hero con avatar inicial, tags chips, total cobrado/pendiente. Card contacto con tel (llamada directa), @instagram, ciudad, yeguada, notas. Historial unificado con icono por tipo (💉cubricion, 🐴vientre), importe, badge pago, fecha. Ruta: /clientes/:id
 - App.tsx: añadidas rutas /parcelas/:id y /clientes/:id
 - SQL pendiente: tablas meadows, meadow_water_logs, meadow_food_logs deben existir con FK meadow_id. FK client_id en semen_sales, pregnancy_sales, pregnancy_interested
 - El campo "vendedor" de ClientTagType no se implementa (requeriría join inverso desde animals.sold_client_id → fácil de añadir en sesión futura)

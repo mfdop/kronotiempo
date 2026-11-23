@@ -1,11 +1,14 @@
 import { errMsg } from '../../lib/errors'
 import { useState, useEffect, Fragment } from 'react'
 import {
-  useSemenSales, useCreateSemenSale, useUpdateSemenSale, useUpsertSemenShipping,
+  useSemenSales, useCreateSemenSale, useUpdateSemenSale, useUpsertSemenShipping, useCreatePayment,
   useDeleteSemenSale,
 } from '../../hooks/useReproduction'
 import { ClientPicker } from '../ui/ClientPicker'
 import type { ClientBasic } from '../ui/ClientPicker'
+import PaymentsPanel from './PaymentsPanel'
+import { summarizePayments, PAYMENT_STATUS_COLOR, PAYMENT_STATUS_LABEL } from '../../lib/payments'
+import type { Payment } from '../../types'
 import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton, DeleteZone } from '../ui'
 import type { Animal, SemenSale, SemenShipping, ShippingResult } from '../../types'
 import { format, parseISO } from 'date-fns'
@@ -17,17 +20,11 @@ type ClientRow = {
   id: string; name: string; phone?: string | null
   instagram?: string | null; city?: string | null; stable_name?: string | null
 }
-type SaleWithData = SemenSale & { clients: ClientRow; semen_shippings: SemenShipping[] }
+type SaleWithData = SemenSale & { clients: ClientRow; semen_shippings: SemenShipping[]; payments: Payment[] }
 
 // ─── HELPERS ─────────────────────────────────────────────────
 function initials(name: string) {
   return name.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase()
-}
-
-const PAYMENT_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  completo:    { label: 'Pago completo',  color: '#2E6B3E', bg: '#EAF3EC' },
-  reserva:     { label: 'Reserva pagada', color: '#9C6A00', bg: '#FDF3DC' },
-  sin_reserva: { label: 'Sin reserva',    color: '#8C1F1F', bg: '#FCEAEA' },
 }
 
 function getShipping(shippings: SemenShipping[], n: 1 | 2 | 3 | 4 | 5) {
@@ -42,12 +39,6 @@ function isUnlocked(shippings: SemenShipping[], n: 1 | 2 | 3 | 4 | 5) {
 
 function hasPrenez(shippings: SemenShipping[]) {
   return shippings.some(s => s.result === 'prenez')
-}
-
-function paymentBarWidth(status: string) {
-  if (status === 'completo') return '100%'
-  if (status === 'reserva')  return '35%'
-  return '0%'
 }
 
 // ─── SHIPPING DOT ─────────────────────────────────────────────
@@ -133,6 +124,7 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
 }) {
   const create          = useCreateSemenSale()
   const upsertShipping  = useUpsertSemenShipping()
+  const createPayment   = useCreatePayment()
   const [client, setClient]   = useState<ClientBasic | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -143,8 +135,7 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
     mare_chip:       '',
     mare_ueln:       '',
     agreed_price:    '',
-    deposit_amount:  '',
-    payment_status:  'sin_reserva' as 'sin_reserva' | 'reserva' | 'completo',
+    initial_payment: '',
     estimated_date:  '',
     notes:           '',
   })
@@ -166,11 +157,18 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
         mare_chip:      form.mare_chip || undefined,
         mare_ueln:      form.mare_ueln || undefined,
         agreed_price:   +form.agreed_price,
-        deposit_amount: form.deposit_amount ? +form.deposit_amount : undefined,
-        payment_status: form.payment_status,
         year:           new Date().getFullYear(),
         notes:          form.notes || undefined,
       } as Omit<SemenSale, 'id' | 'created_at'>)
+
+      if (form.initial_payment && +form.initial_payment > 0) {
+        await createPayment.mutateAsync({
+          semen_sale_id: sale.id,
+          amount:        +form.initial_payment,
+          paid_date:     format(new Date(), 'yyyy-MM-dd'),
+          notes:         'Pago inicial',
+        })
+      }
 
       if (form.estimated_date) {
         await upsertShipping.mutateAsync({
@@ -182,7 +180,7 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
       }
       onSaved(); onClose()
       setClient(null)
-      setForm({ mare_name: '', mare_birth_date: '', mare_chip: '', mare_ueln: '', agreed_price: '', deposit_amount: '', payment_status: 'sin_reserva', estimated_date: '', notes: '' })
+      setForm({ mare_name: '', mare_birth_date: '', mare_chip: '', mare_ueln: '', agreed_price: '', initial_payment: '', estimated_date: '', notes: '' })
     } catch (e: unknown) {
       setError(errMsg(e))
     }
@@ -258,34 +256,14 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
                    className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                    style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
           </Field>
-          <Field label="Reserva">
-            <input type="number" inputMode="numeric" value={form.deposit_amount}
-                   onChange={e => set('deposit_amount', e.target.value)}
+          <Field label="Pago inicial">
+            <input type="number" inputMode="numeric" value={form.initial_payment}
+                   onChange={e => set('initial_payment', e.target.value)}
                    placeholder="0"
                    className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                    style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
           </Field>
         </div>
-
-        <Field label="Estado del pago">
-          <div className="flex gap-2">
-            {(['sin_reserva', 'reserva', 'completo'] as const).map(s => {
-              const p = PAYMENT_LABEL[s]
-              const isActive = form.payment_status === s
-              return (
-                <button key={s} onClick={() => set('payment_status', s)}
-                        className="flex-1 py-2 rounded-xl text-[11px] font-semibold"
-                        style={{
-                          background: isActive ? p.color : '#F7F3EE',
-                          color: isActive ? '#fff' : '#6B5555',
-                          border: `1.5px solid ${isActive ? p.color : 'rgba(123,31,58,0.22)'}`,
-                        }}>
-                  {p.label}
-                </button>
-              )
-            })}
-          </div>
-        </Field>
 
         <Field label="Fecha estimada primer envío" hint="Opcional">
           <input type="date" value={form.estimated_date} onChange={e => set('estimated_date', e.target.value)}
@@ -536,10 +514,8 @@ function MareDataCard({ sale }: { sale: SaleWithData }) {
 function SaleDetailSheet({ open, onClose, sale, stallionId }: {
   open: boolean; onClose: () => void; sale: SaleWithData; stallionId: string
 }) {
-  const updateSale   = useUpdateSemenSale()
   const deleteSale   = useDeleteSemenSale(stallionId)
   const c = sale.clients
-  const [localStatus, setLocalStatus]   = useState(sale.payment_status)
   const [localResults, setLocalResults] = useState<Partial<Record<1|2|3|4|5, ShippingResult>>>({})
 
   const getEffectiveResult = (n: 1|2|3|4|5): ShippingResult | undefined =>
@@ -549,14 +525,6 @@ function SaleDetailSheet({ open, onClose, sale, stallionId }: {
     if (n === 1) return true
     return getEffectiveResult((n - 1) as 1|2|3|4|5) === 'sin_prenez'
   }
-
-  const updatePayment = (status: 'sin_reserva' | 'reserva' | 'completo') => {
-    setLocalStatus(status)
-    updateSale.mutate({ id: sale.id, payment_status: status })
-  }
-
-  const pl     = PAYMENT_LABEL[localStatus]
-  const barW   = paymentBarWidth(localStatus)
 
   const saleDate = (() => {
     try { return format(parseISO(sale.created_at), 'd MMM yyyy', { locale: es }) } catch { return '' }
@@ -568,64 +536,7 @@ function SaleDetailSheet({ open, onClose, sale, stallionId }: {
       <div className="space-y-4">
 
         {/* PAYMENT */}
-        <div className="rounded-2xl overflow-hidden"
-             style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-          <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
-            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>
-              Estado del pago · {sale.agreed_price.toLocaleString('es-ES')} €
-            </p>
-          </div>
-          <div className="px-4 pt-3">
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F7F3EE' }}>
-              <div className="h-full rounded-full transition-all"
-                   style={{ width: barW, background: pl.color }} />
-            </div>
-          </div>
-          <div className="flex gap-2 px-4 py-3">
-            {(['sin_reserva', 'reserva', 'completo'] as const).map(s => {
-              const p = PAYMENT_LABEL[s]
-              const isActive = localStatus === s
-              return (
-                <button key={s} onClick={() => updatePayment(s)}
-                        className="flex-1 py-2 rounded-xl text-[11px] font-semibold"
-                        style={{
-                          background: isActive ? p.color : '#F7F3EE',
-                          color: isActive ? '#fff' : '#6B5555',
-                          border: `1.5px solid ${isActive ? p.color : 'rgba(123,31,58,0.22)'}`,
-                        }}>
-                  {p.label}
-                </button>
-              )
-            })}
-          </div>
-          {(sale.deposit_amount || sale.agreed_price) && (
-            <div className="flex px-4 pb-3 gap-4"
-                 style={{ borderTop: '1px solid rgba(123,31,58,0.08)' }}>
-              {sale.deposit_amount ? (
-                <div className="flex-1">
-                  <p className="text-[10px] pt-2" style={{ color: '#A08888' }}>Reserva</p>
-                  <p className="text-[16px] font-bold" style={{ color: '#9C6A00' }}>
-                    {sale.deposit_amount.toLocaleString('es-ES')} €
-                  </p>
-                </div>
-              ) : null}
-              {sale.final_amount ? (
-                <div className="flex-1">
-                  <p className="text-[10px] pt-2" style={{ color: '#A08888' }}>Pago final</p>
-                  <p className="text-[16px] font-bold" style={{ color: '#1C1010' }}>
-                    {sale.final_amount.toLocaleString('es-ES')} €
-                  </p>
-                </div>
-              ) : null}
-              <div className="flex-1">
-                <p className="text-[10px] pt-2" style={{ color: '#A08888' }}>Total acordado</p>
-                <p className="text-[16px] font-bold" style={{ color: '#1C1010' }}>
-                  {sale.agreed_price.toLocaleString('es-ES')} €
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+        <PaymentsPanel kind="semen" saleId={sale.id} agreedPrice={sale.agreed_price} payments={sale.payments} />
 
         {/* SHIPPINGS */}
         <div>
@@ -662,8 +573,6 @@ function SaleDetailSheet({ open, onClose, sale, stallionId }: {
               c.phone       ? ['Teléfono', c.phone, false]      : null,
               c.instagram   ? ['Instagram', `@${c.instagram}`, true] : null,
               ['Precio acordado', `${sale.agreed_price.toLocaleString('es-ES')} €`, false],
-              sale.deposit_amount ? ['Reserva', `${sale.deposit_amount.toLocaleString('es-ES')} €`, false] : null,
-              sale.final_amount   ? ['Pago final', `${sale.final_amount.toLocaleString('es-ES')} €`, false] : null,
               ['Fecha venta', saleDate, false],
               sale.notes ? ['Notas', sale.notes, false] : null,
             ] as ([string, string, boolean] | null)[]).filter(Boolean).map((row, i) => {
@@ -718,11 +627,7 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
   const filtered    = pendingOnly ? yearSales.filter(s => !hasPrenez(s.semen_shippings)) : yearSales
 
   // Financial stats for selected year
-  const cobrado = yearSales.reduce((acc, s) => {
-    if (s.payment_status === 'completo') return acc + s.agreed_price
-    if (s.payment_status === 'reserva')  return acc + (s.deposit_amount ?? 0)
-    return acc
-  }, 0)
+  const cobrado = yearSales.reduce((acc, s) => acc + summarizePayments(s.agreed_price, s.payments).paid, 0)
   const estimado    = yearSales.reduce((acc, s) => acc + s.agreed_price, 0)
   const totalEnvios = yearSales.reduce((acc, s) => acc + s.semen_shippings.length, 0)
   const exitoPct    = yearSales.length > 0
@@ -818,8 +723,9 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
         ) : (
           filtered.map((sale, i) => {
             const ships = sale.semen_shippings
-            const pl    = PAYMENT_LABEL[sale.payment_status]
-            const barW  = paymentBarWidth(sale.payment_status)
+            const ps    = summarizePayments(sale.agreed_price, sale.payments)
+            const pl    = PAYMENT_STATUS_COLOR[ps.status]
+            const barW  = `${ps.pct}%`
 
             return (
               <button key={sale.id}
@@ -860,7 +766,7 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
                     <div className="h-full rounded-full" style={{ width: barW, background: pl.color }} />
                   </div>
                   <span className="text-[10px] font-semibold shrink-0" style={{ color: pl.color }}>
-                    {pl.label}
+                    {PAYMENT_STATUS_LABEL[ps.status]}{ps.status === 'parcial' ? ` · ${ps.paid.toLocaleString('es-ES')} €` : ''}
                   </span>
                 </div>
 

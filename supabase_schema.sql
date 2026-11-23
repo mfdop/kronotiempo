@@ -156,25 +156,12 @@ create table pregnancies (
   created_at           timestamptz default now()
 );
 
--- ── PREGNANCY INTERESTED ─────────────────────────────────────
-create table pregnancy_interested (
-  id             uuid primary key default uuid_generate_v4(),
-  pregnancy_id   uuid not null references pregnancies(id) on delete cascade,
-  client_id      uuid not null,  -- FK after clients
-  notes          text,
-  created_at     timestamptz default now()
-);
-
 -- ── PREGNANCY SALES (vientre) ────────────────────────────────
 create table pregnancy_sales (
   id              uuid primary key default uuid_generate_v4(),
   pregnancy_id    uuid not null references pregnancies(id) on delete cascade,
   client_id       uuid not null,  -- FK after clients
   agreed_price    numeric(10,2) not null,
-  deposit_amount  numeric(10,2),
-  final_amount    numeric(10,2),
-  payment_status  text not null default 'sin_reserva'
-                    check (payment_status in ('sin_reserva','reserva','completo')),
   delivery_date   date,
   notes           text,
   created_at      timestamptz default now()
@@ -203,10 +190,6 @@ alter table animals
   add constraint animals_sold_client_fk
   foreign key (sold_client_id) references clients(id);
 
-alter table pregnancy_interested
-  add constraint pi_client_fk
-  foreign key (client_id) references clients(id);
-
 alter table pregnancy_sales
   add constraint ps_client_fk
   foreign key (client_id) references clients(id);
@@ -221,13 +204,26 @@ create table semen_sales (
   mare_chip       text,
   mare_ueln       text,
   agreed_price    numeric(10,2) not null,
-  deposit_amount  numeric(10,2),
-  final_amount    numeric(10,2),
-  payment_status  text not null default 'sin_reserva'
-                    check (payment_status in ('sin_reserva','reserva','completo')),
   year            int not null,
   notes           text,
   created_at      timestamptz default now()
+);
+
+-- ── PAYMENTS (installments of a pregnancy sale or a semen sale) ──
+create table payments (
+  id                 uuid primary key default uuid_generate_v4(),
+  owner_id           uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  pregnancy_sale_id  uuid references pregnancy_sales(id) on delete cascade,
+  semen_sale_id      uuid references semen_sales(id) on delete cascade,
+  amount             numeric(10,2) not null check (amount > 0),
+  paid_date          date not null default current_date,
+  method             text,
+  notes              text,
+  created_at         timestamptz default now(),
+  constraint payments_one_sale_check check (
+    (pregnancy_sale_id is not null and semen_sale_id is null) or
+    (pregnancy_sale_id is null and semen_sale_id is not null)
+  )
 );
 
 -- ── SEMEN SHIPPINGS ──────────────────────────────────────────
@@ -365,11 +361,11 @@ alter table meadow_water_logs     enable row level security;
 alter table meadow_food_logs      enable row level security;
 alter table animal_genetics       enable row level security;
 alter table pregnancies           enable row level security;
-alter table pregnancy_interested  enable row level security;
 alter table pregnancy_sales       enable row level security;
 alter table clients               enable row level security;
 alter table semen_sales           enable row level security;
 alter table semen_shippings       enable row level security;
+alter table payments              enable row level security;
 alter table shoeing_records       enable row level security;
 alter table health_episodes       enable row level security;
 alter table vaccines              enable row level security;
@@ -419,16 +415,6 @@ create policy "pregnancies: owner full access" on pregnancies
     exists (select 1 from animals a where a.id = mare_id and a.owner_id = auth.uid())
   );
 
--- Pregnancy interested
-create policy "preg_interested: owner full access" on pregnancy_interested
-  for all using (
-    exists (
-      select 1 from pregnancies p
-      join animals a on a.id = p.mare_id
-      where p.id = pregnancy_id and a.owner_id = auth.uid()
-    )
-  );
-
 -- Pregnancy sales
 create policy "preg_sales: owner full access" on pregnancy_sales
   for all using (
@@ -438,6 +424,12 @@ create policy "preg_sales: owner full access" on pregnancy_sales
       where p.id = pregnancy_id and a.owner_id = auth.uid()
     )
   );
+
+create policy "payments: owner full access" on payments
+  for all using (owner_id = auth.uid())
+  with check (owner_id = auth.uid());
+
+grant select, insert, update, delete on payments to authenticated;
 
 -- Clients
 create policy "clients: owner full access" on clients
@@ -525,6 +517,8 @@ create index on animals (dam_id);
 create index on meadows (owner_id);
 create index on pregnancies (mare_id);
 create index on semen_sales (stallion_id);
+create index on payments (pregnancy_sale_id);
+create index on payments (semen_sale_id);
 create index on semen_sales (client_id, year);
 create index on shoeing_records (animal_id, date desc);
 create index on health_episodes (animal_id);

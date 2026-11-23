@@ -13,13 +13,11 @@ function fmt(n: number) {
 const TAG_LABELS: Record<ClientTagType, string> = {
   cubricion:  'Cubrición',
   vientre:    'Vientre',
-  interesado: 'Interesado',
   vendedor:   'Vendedor',
 }
 const TAG_COLORS: Record<ClientTagType, { bg: string; color: string }> = {
   cubricion:  { bg: '#E8F0F8', color: '#1A4F7A' },
   vientre:    { bg: '#EAF3EC', color: '#2E6B3E' },
-  interesado: { bg: '#F5E8EC', color: '#7B1F3A' },
   vendedor:   { bg: '#FCEAEA', color: '#8C1F1F' },
 }
 
@@ -27,7 +25,6 @@ const FILTERS = [
   { key: 'todos',      label: 'Todos' },
   { key: 'cubricion',  label: 'Cubriciones' },
   { key: 'vientre',    label: 'Vientres' },
-  { key: 'interesado', label: 'Interesados' },
   { key: 'deuda',      label: 'Con deuda' },
 ] as const
 

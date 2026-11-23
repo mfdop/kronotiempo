@@ -6,7 +6,8 @@ import { es } from 'date-fns/locale'
 import { useClientById, useClientTransactions, useDeleteClient, useUpsertClient } from '../hooks/useReproduction'
 import { useAuth } from '../hooks/useAuth'
 import { LoadingScreen, EmptyState, DeleteZone } from '../components/ui'
-import type { ClientTagType, SemenSale, PregnancySale, PregnancyInterested } from '../types'
+import { summarizePayments, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_COLOR } from '../lib/payments'
+import type { ClientTagType, SemenSale, PregnancySale } from '../types'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -22,7 +23,6 @@ function fmtDate(iso: string) {
 const TAG_CONFIG: Record<ClientTagType, { label: string; bg: string; color: string }> = {
   cubricion:  { label: 'Cubrición',  bg: 'rgba(26,79,122,0.8)',    color: '#fff' },
   vientre:    { label: 'Vientre',    bg: 'rgba(46,107,62,0.8)',     color: '#fff' },
-  interesado: { label: 'Interesado', bg: 'rgba(123,31,58,0.8)',     color: '#fff' },
   vendedor:   { label: 'Vendedor',   bg: 'rgba(140,31,31,0.8)',     color: '#fff' },
 }
 
@@ -30,7 +30,7 @@ const TAG_CONFIG: Record<ClientTagType, { label: string; bg: string; color: stri
 
 type TxItem = {
   id: string
-  type: 'cubricion' | 'vientre' | 'interesado'
+  type: 'cubricion' | 'vientre'
   icon: string
   iconBg: string
   title: string
@@ -45,23 +45,22 @@ type TxItem = {
 
 function buildTimeline(
   semSales: SemenSale[],
-  pregSales: PregnancySale[],
-  interested: PregnancyInterested[]
+  pregSales: PregnancySale[]
 ): TxItem[] {
   const items: TxItem[] = []
 
   semSales.forEach(s => {
-    const paid = (s.deposit_amount ?? 0) + (s.final_amount ?? 0)
+    const ps = summarizePayments(s.agreed_price, s.payments)
     items.push({
       id: s.id,
       type: 'cubricion',
       icon: '💉',
       iconBg: '#E8F0F8',
       title: 'Cubrición',
-      meta: s.mare_name ? `Yegua: ${s.mare_name}` : `Año ${s.year}`,
+      meta: `${s.mare_name ? `Yegua: ${s.mare_name}` : `Año ${s.year}`} · Pagado ${fmt(ps.paid)} · Pendiente ${fmt(ps.pending)}`,
       amount: s.agreed_price,                                 // always show agreed price
-      amountColor: paid >= s.agreed_price && s.agreed_price > 0 ? '#2E6B3E' : paid > 0 ? '#9C6A00' : '#A08888',
-      paymentStatus: s.payment_status,
+      amountColor: ps.status === 'completo' ? '#2E6B3E' : ps.status === 'parcial' ? '#9C6A00' : '#A08888',
+      paymentStatus: ps.status,
       date: s.created_at,
       animalId: s.stallion_id,
       animalTab: 'Cubriciones',
@@ -69,7 +68,7 @@ function buildTimeline(
   })
 
   pregSales.forEach(s => {
-    const paid = (s.deposit_amount ?? 0) + (s.final_amount ?? 0)
+    const ps = summarizePayments(s.agreed_price, s.payments)
     const mareId = (s as unknown as { pregnancies?: { mare_id: string } }).pregnancies?.mare_id
     items.push({
       id: s.id,
@@ -77,27 +76,11 @@ function buildTimeline(
       icon: '🐴',
       iconBg: '#EAF3EC',
       title: 'Venta de vientre',
-      meta: `Precio acordado: ${fmt(s.agreed_price)}`,
+      meta: `Pagado ${fmt(ps.paid)} · Pendiente ${fmt(ps.pending)}`,
       amount: s.agreed_price,                                 // always show agreed price
-      amountColor: paid >= s.agreed_price && s.agreed_price > 0 ? '#2E6B3E' : paid > 0 ? '#9C6A00' : '#A08888',
-      paymentStatus: s.payment_status,
+      amountColor: ps.status === 'completo' ? '#2E6B3E' : ps.status === 'parcial' ? '#9C6A00' : '#A08888',
+      paymentStatus: ps.status,
       date: s.created_at,
-      animalId: mareId,
-      animalTab: 'Vientre',
-    })
-  })
-
-  interested.forEach(i => {
-    const mareId = (i as PregnancyInterested & { pregnancies?: { mare_id: string } }).pregnancies?.mare_id
-    items.push({
-      id: i.id,
-      type: 'interesado',
-      icon: '⭐',
-      iconBg: '#F5E8EC',
-      title: 'Interesado en cría',
-      meta: `Registrado ${fmtDate(i.created_at)}`,
-      amountColor: '#A08888',
-      date: i.created_at,
       animalId: mareId,
       animalTab: 'Vientre',
     })
@@ -106,22 +89,12 @@ function buildTimeline(
   return items.sort((a, b) => b.date.localeCompare(a.date))
 }
 
-const PAY_STATUS_LABELS: Record<string, string> = {
-  sin_reserva: 'Sin reserva',
-  reserva:     'Con reserva',
-  completo:    'Completo',
-}
-const PAY_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  sin_reserva: { bg: '#F7F3EE', color: '#A08888' },
-  reserva:     { bg: '#FDF3DC', color: '#9C6A00' },
-  completo:    { bg: '#EAF3EC', color: '#2E6B3E' },
-}
 
 // ─── TX ROW ───────────────────────────────────────────────────────────────────
 
 function TxRow({ item, onNavigate }: { item: TxItem; onNavigate?: () => void }) {
   const paySt = item.paymentStatus
-  const payColor = paySt ? (PAY_STATUS_COLORS[paySt] ?? PAY_STATUS_COLORS.sin_reserva) : null
+  const payColor = paySt ? (PAYMENT_STATUS_COLOR[paySt as keyof typeof PAYMENT_STATUS_COLOR] ?? PAYMENT_STATUS_COLOR.sin_pagos) : null
 
   const inner = (
     <>
@@ -142,7 +115,7 @@ function TxRow({ item, onNavigate }: { item: TxItem; onNavigate?: () => void }) 
         {payColor && paySt && (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                 style={payColor}>
-            {PAY_STATUS_LABELS[paySt] ?? paySt}
+            {PAYMENT_STATUS_LABEL[paySt as keyof typeof PAYMENT_STATUS_LABEL] ?? paySt}
           </span>
         )}
         <div className="flex items-center gap-1">
@@ -238,23 +211,17 @@ export default function ClienteDetailPage() {
                 action={{ label: '‹ Volver', onClick: () => navigate(-1) }} />
   )
 
-  const { semSales = [], pregSales = [], interested = [] } = transactions ?? {}
-  const timeline = buildTimeline(semSales, pregSales, interested)
+  const { semSales = [], pregSales = [] } = transactions ?? {}
+  const timeline = buildTimeline(semSales, pregSales)
 
-  const totalPaid = [...semSales, ...pregSales].reduce((s, t) => {
-    return s + (t.deposit_amount ?? 0) + (t.final_amount ?? 0)
-  }, 0)
-  const totalPending = [...semSales, ...pregSales].reduce((s, t) => {
-    if (t.payment_status === 'completo') return s
-    const paid = (t.deposit_amount ?? 0) + (t.final_amount ?? 0)
-    return s + Math.max(0, t.agreed_price - paid)
-  }, 0)
+  const sums = [...semSales, ...pregSales].map(t => summarizePayments(t.agreed_price, t.payments))
+  const totalPaid    = sums.reduce((s, x) => s + x.paid, 0)
+  const totalPending = sums.reduce((s, x) => s + x.pending, 0)
 
   // Compute tags from transactions
   const tags: ClientTagType[] = []
   if (semSales.length > 0) tags.push('cubricion')
   if (pregSales.length > 0) tags.push('vientre')
-  if (interested.length > 0) tags.push('interesado')
 
   const initial = client.name.trim()[0]?.toUpperCase() ?? '?'
 

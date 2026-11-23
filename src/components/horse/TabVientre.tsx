@@ -2,16 +2,17 @@ import { errMsg } from '../../lib/errors'
 import { useState, useEffect, useMemo } from 'react'
 import {
   usePregnancies, useCreatePregnancy, useUpdatePregnancy,
-  usePregnancyInterested, useCreatePregnancyInterested,
-  usePregnancySale, useUpsertPregnancySale,
+  usePregnancySale, useUpsertPregnancySale, useCreatePayment,
   useDeletePregnancy, usePregnancySalesForMare,
   useAnimalGenetics,
 } from '../../hooks/useReproduction'
 import { useAnimals } from '../../hooks/useAnimals'
 import { ClientPicker } from '../ui/ClientPicker'
 import type { ClientBasic } from '../ui/ClientPicker'
+import PaymentsPanel from './PaymentsPanel'
+import { summarizePayments, PAYMENT_STATUS_COLOR } from '../../lib/payments'
 import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton, DeleteZone } from '../ui'
-import type { Animal, AnimalGenetics, Pregnancy, PregnancyResult, PregnancySale } from '../../types'
+import type { Animal, AnimalGenetics, Payment, PaymentStatus, Pregnancy, PregnancyResult, PregnancySale } from '../../types'
 import { format, parseISO, addDays, differenceInDays, differenceInWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { PREGNANCY_DAYS } from '../../lib/constants'
@@ -35,17 +36,11 @@ const RESULT_COLORS: Record<PregnancyResult, { bg: string; color: string }> = {
 }
 
 type ClientRow = { id: string; name: string; phone?: string|null; instagram?: string|null; city?: string|null; stable_name?: string|null }
-type SaleWithClient = PregnancySale & { clients: ClientRow | null; id: string }
+type SaleWithClient = PregnancySale & { clients: (ClientRow & { dni?: string | null }) | null; id: string; payments: Payment[] }
 
 function daysToBirth(expected?: string | null) {
   if (!expected) return null
   return differenceInDays(parseISO(expected), new Date())
-}
-
-function paymentLabel(status: string) {
-  if (status === 'completo')   return { label: 'Pago completo',   bg: '#EAF3EC', color: '#2E6B3E' }
-  if (status === 'reserva')    return { label: 'Reserva pagada',  bg: '#FDF3DC', color: '#9C6A00' }
-  return                              { label: 'Sin reserva',      bg: '#FCEAEA', color: '#8C1F1F' }
 }
 
 // ─── GENETICS MATH (cross prediction) ────────────────────────
@@ -250,16 +245,14 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
 }) {
   const update                    = useUpdatePregnancy()
   const deletePregnancy           = useDeletePregnancy(pregnancy.mare_id)
-  const { data: interested = [] } = usePregnancyInterested(pregnancy.id)
   const { data: saleRaw }         = usePregnancySale(pregnancy.id)
   const sale                      = saleRaw as SaleWithClient | null
-  const createInterested          = useCreatePregnancyInterested()
+  const createPayment             = useCreatePayment()
   const upsertSale                = useUpsertPregnancySale()
   const { data: allAnimals = [] } = useAnimals()
   const { data: mareGenetics }    = useAnimalGenetics(pregnancy.mare_id)
   const { data: sireGenetics }    = useAnimalGenetics(pregnancy.sire_id ?? undefined)
-  const [tab, setTab]             = useState<'info' | 'interested' | 'buyer'>('info')
-  const [clientPickerOpen, setClientPickerOpen] = useState(false)
+  const [tab, setTab]             = useState<'info' | 'buyer'>('info')
   const [buyerPickerOpen,  setBuyerPickerOpen]  = useState(false)
 
   // Optimistic local state for result pills
@@ -332,21 +325,15 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
 
   const stallions = allAnimals.filter(a => a.sex === 'semental')
 
-  // Two-step add for interested with notes
-  const [pendingClient,    setPendingClient]    = useState<ClientBasic | null>(null)
-  const [interestedNotes,  setInterestedNotes]  = useState('')
-
   // Buyer tab local state
-  const [localPayment, setLocalPayment]   = useState<'sin_reserva'|'reserva'|'completo'>('sin_reserva')
   const [localPrice,   setLocalPrice]     = useState('')
-  const [localDeposit, setLocalDeposit]   = useState('')
+  const [pendingBuyer, setPendingBuyer]   = useState<ClientBasic | null>(null)
+  const [newPrice,     setNewPrice]       = useState('')
+  const [newInitial,   setNewInitial]     = useState('')
+  const [buyerError,   setBuyerError]     = useState<string | null>(null)
 
   useEffect(() => {
-    if (sale) {
-      setLocalPayment(sale.payment_status)
-      setLocalPrice(sale.agreed_price > 0 ? String(sale.agreed_price) : '')
-      setLocalDeposit(sale.deposit_amount ? String(sale.deposit_amount) : '')
-    }
+    if (sale) setLocalPrice(sale.agreed_price > 0 ? String(sale.agreed_price) : '')
   }, [sale?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const days = daysToBirth(pregnancy.expected_birth_date)
@@ -358,44 +345,35 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
     update.mutate({ id: pregnancy.id, result: r })
   }
 
-  const confirmInterested = () => {
-    if (!pendingClient) return
-    createInterested.mutate({
-      pregnancy_id: pregnancy.id,
-      client_id: pendingClient.id,
-      notes: interestedNotes || undefined,
-    })
-    setPendingClient(null)
-    setInterestedNotes('')
-  }
-
-  const importAsBuyer = (client: ClientBasic) => {
-    setBuyerPickerOpen(false)
-    upsertSale.mutate({
-      pregnancy_id:   pregnancy.id,
-      client_id:      client.id,
-      agreed_price:   0,
-      payment_status: 'sin_reserva',
-    })
-    setTab('buyer')
-  }
-
-  const updatePayment = (status: 'sin_reserva'|'reserva'|'completo') => {
-    if (!sale) return
-    setLocalPayment(status)
-    upsertSale.mutate({ pregnancy_id: sale.pregnancy_id, client_id: sale.client_id, agreed_price: sale.agreed_price, payment_status: status, id: sale.id })
+  const confirmBuyer = async () => {
+    if (!pendingBuyer) return
+    setBuyerError(null)
+    try {
+      const created = await upsertSale.mutateAsync({
+        pregnancy_id: pregnancy.id,
+        client_id:    pendingBuyer.id,
+        agreed_price: parseFloat(newPrice) || 0,
+      })
+      const initial = parseFloat(newInitial)
+      if (initial > 0) {
+        await createPayment.mutateAsync({
+          pregnancy_sale_id: (created as { id: string }).id,
+          amount:    initial,
+          paid_date: format(new Date(), 'yyyy-MM-dd'),
+          notes:     'Pago inicial',
+        })
+      }
+      setPendingBuyer(null); setNewPrice(''); setNewInitial('')
+    } catch (e) {
+      setBuyerError(errMsg(e))
+    }
   }
 
   const savePrice = () => {
     if (!sale) return
     const price = parseFloat(localPrice) || 0
-    upsertSale.mutate({ pregnancy_id: sale.pregnancy_id, client_id: sale.client_id, agreed_price: price, payment_status: localPayment, deposit_amount: parseFloat(localDeposit) || undefined, id: sale.id })
-  }
-
-  const saveDeposit = () => {
-    if (!sale) return
-    const deposit = parseFloat(localDeposit) || undefined
-    upsertSale.mutate({ pregnancy_id: sale.pregnancy_id, client_id: sale.client_id, agreed_price: parseFloat(localPrice) || 0, payment_status: localPayment, deposit_amount: deposit, id: sale.id })
+    if (price === sale.agreed_price) return
+    upsertSale.mutate({ pregnancy_id: sale.pregnancy_id, client_id: sale.client_id, agreed_price: price, id: sale.id })
   }
 
   return (
@@ -424,7 +402,7 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
 
       {/* Sub-tabs */}
       <div className="flex border-b mb-4" style={{ borderColor: 'rgba(123,31,58,0.11)' }}>
-        {([['info','Info'],['interested','Interesados'],['buyer','Comprador']] as const).map(([id, label]) => (
+        {([['info','Info'],['buyer','Comprador']] as const).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
                   className="flex-1 py-2.5 text-[12px] font-medium"
                   style={{
@@ -648,85 +626,47 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
         </div>
       )}
 
-      {/* INTERESTED TAB */}
-      {tab === 'interested' && (
-        <div className="space-y-2.5">
-          <div className="flex justify-between items-center">
-            <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>
-              {interested.length} interesados
-            </p>
-            {!pendingClient && (
-              <button onClick={() => setClientPickerOpen(true)}
-                      className="text-[13px] font-bold" style={{ color: '#7B1F3A' }}>
-                + Añadir
-              </button>
-            )}
-          </div>
-
-          {/* Two-step: pick client → notes → confirm */}
-          {pendingClient && (
-            <div className="rounded-xl p-3 space-y-2"
-                 style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)' }}>
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>
-                  {pendingClient.name}
-                </p>
-                <button onClick={() => setPendingClient(null)}
-                        className="text-[16px] leading-none" style={{ color: '#A08888' }}>×</button>
-              </div>
-              <textarea value={interestedNotes} onChange={e => setInterestedNotes(e.target.value)}
-                        rows={2} placeholder="Notas sobre el interesado (opcional)..."
-                        className="w-full rounded-xl px-3 py-2 text-[13px] outline-none resize-none"
-                        style={{ background: '#fff', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
-              <button onClick={confirmInterested}
-                      className="w-full py-2 rounded-xl text-[13px] font-bold"
-                      style={{ background: '#7B1F3A', color: '#fff' }}>
-                Confirmar interesado
-              </button>
-            </div>
-          )}
-
-          {interested.length === 0 && !pendingClient ? (
-            <p className="text-center py-6 text-[13px] italic" style={{ color: '#A08888' }}>Sin interesados aún</p>
-          ) : interested.length > 0 ? (
-            <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(123,31,58,0.11)' }}>
-              {(interested as Array<{ id: string; notes?: string | null; clients: ClientRow }>).map((item, i, arr) => (
-                <div key={item.id} className="px-4 py-3 bg-white"
-                     style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-[14px] font-semibold" style={{ color: '#1C1010' }}>{item.clients.name}</p>
-                    <button onClick={() => {
-                      upsertSale.mutate({ pregnancy_id: pregnancy.id, client_id: item.clients.id, agreed_price: 0, payment_status: 'sin_reserva' })
-                      setTab('buyer')
-                    }} className="text-[11px] font-bold" style={{ color: '#7B1F3A' }}>
-                      → Comprador
-                    </button>
-                  </div>
-                  {item.clients.stable_name && <p className="text-[12px]" style={{ color: '#6B5555' }}>{item.clients.stable_name}</p>}
-                  {item.clients.phone && <p className="text-[12px]" style={{ color: '#6B5555' }}>{item.clients.phone}</p>}
-                  {item.clients.instagram && <p className="text-[11px]" style={{ color: '#833AB4' }}>@{item.clients.instagram}</p>}
-                  {item.notes && <p className="text-[12px] mt-1 italic" style={{ color: '#A08888' }}>{item.notes}</p>}
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          <ClientPicker open={clientPickerOpen} onClose={() => setClientPickerOpen(false)}
-                        onSelect={c => { setClientPickerOpen(false); setPendingClient(c); setInterestedNotes('') }}
-                        title="Añadir interesado" />
-        </div>
-      )}
-
       {/* BUYER TAB */}
       {tab === 'buyer' && (
         <div className="space-y-3">
           {!sale ? (
-            <>
-              <p className="text-[13px] text-center py-4 italic" style={{ color: '#A08888' }}>Sin comprador definitivo</p>
-              <GranateButton onClick={() => setBuyerPickerOpen(true)} fullWidth>
-                Seleccionar comprador
-              </GranateButton>
-            </>
+            pendingBuyer ? (
+              <div className="rounded-2xl p-4 space-y-3" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Comprador</p>
+                    <p className="text-[14px] font-semibold truncate" style={{ color: '#1C1010' }}>{pendingBuyer.name}</p>
+                  </div>
+                  <button onClick={() => setBuyerPickerOpen(true)} className="text-[12px] font-bold" style={{ color: '#7B1F3A' }}>Cambiar</button>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <p className="text-[10px] mb-1" style={{ color: '#A08888' }}>Precio acordado (€)</p>
+                    <input type="number" inputMode="numeric" value={newPrice} onChange={e => setNewPrice(e.target.value)}
+                           placeholder="0" className="w-full rounded-xl px-3 py-2 text-[14px] font-bold outline-none"
+                           style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] mb-1" style={{ color: '#A08888' }}>Pago inicial (€, opcional)</p>
+                    <input type="number" inputMode="numeric" value={newInitial} onChange={e => setNewInitial(e.target.value)}
+                           placeholder="0" className="w-full rounded-xl px-3 py-2 text-[14px] font-bold outline-none"
+                           style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#9C6A00' }} />
+                  </div>
+                </div>
+                {buyerError && <p className="text-[13px] rounded-xl px-4 py-2.5" style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{buyerError}</p>}
+                <GranateButton onClick={confirmBuyer} disabled={upsertSale.isPending || createPayment.isPending} fullWidth>
+                  {upsertSale.isPending || createPayment.isPending ? 'Guardando...' : 'Guardar comprador'}
+                </GranateButton>
+                <GhostButton onClick={() => { setPendingBuyer(null); setBuyerError(null) }} fullWidth>Cancelar</GhostButton>
+              </div>
+            ) : (
+              <>
+                <p className="text-[13px] text-center py-4 italic" style={{ color: '#A08888' }}>Sin comprador definitivo</p>
+                <GranateButton onClick={() => setBuyerPickerOpen(true)} fullWidth>
+                  Seleccionar o crear comprador
+                </GranateButton>
+              </>
+            )
           ) : (
             <>
               {/* Client info */}
@@ -741,6 +681,7 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
                     sale.clients.city        ? ['Ciudad',   sale.clients.city]               : null,
                     sale.clients.phone       ? ['Teléfono', sale.clients.phone]              : null,
                     sale.clients.instagram   ? ['Instagram',`@${sale.clients.instagram}`]   : null,
+                    sale.clients.dni         ? ['DNI',      sale.clients.dni]                : null,
                   ].filter(Boolean).map((row, i) => {
                     const [label, value] = row as [string, string]
                     return (
@@ -757,58 +698,25 @@ function PregnancyDetailSheet({ open, onClose, pregnancy }: {
                 </div>
               )}
 
-              {/* Payment */}
-              <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-                <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
-                  <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Estado del pago</p>
-                </div>
-                <div className="px-4 pt-3">
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F7F3EE' }}>
-                    <div className="h-full rounded-full transition-all"
-                         style={{
-                           width:      localPayment === 'completo' ? '100%' : localPayment === 'reserva' ? '30%' : '0%',
-                           background: localPayment === 'completo' ? '#2E6B3E' : '#9C6A00',
-                         }} />
-                  </div>
-                </div>
-                <div className="flex gap-2 px-4 py-3">
-                  {(['sin_reserva','reserva','completo'] as const).map(s => {
-                    const p = paymentLabel(s)
-                    return (
-                      <button key={s} onClick={() => updatePayment(s)}
-                              className="flex-1 py-2 rounded-xl text-[11px] font-semibold"
-                              style={{
-                                background: localPayment === s ? p.color : '#F7F3EE',
-                                color:      localPayment === s ? '#fff'   : '#6B5555',
-                                border: `1.5px solid ${localPayment === s ? p.color : 'rgba(123,31,58,0.22)'}`,
-                              }}>{p.label}</button>
-                    )
-                  })}
-                </div>
-                {/* Editable amounts */}
-                <div className="flex px-4 pb-3 gap-3" style={{ borderTop: '1px solid rgba(123,31,58,0.08)' }}>
-                  <div className="flex-1 pt-2">
-                    <p className="text-[10px] mb-1" style={{ color: '#A08888' }}>Reserva (€)</p>
-                    <input type="number" inputMode="numeric"
-                           value={localDeposit} onChange={e => setLocalDeposit(e.target.value)}
-                           onBlur={saveDeposit} placeholder="0"
-                           className="w-full rounded-xl px-3 py-2 text-[14px] font-bold outline-none"
-                           style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#9C6A00' }} />
-                  </div>
-                  <div className="flex-1 pt-2">
-                    <p className="text-[10px] mb-1" style={{ color: '#A08888' }}>Total acordado (€)</p>
-                    <input type="number" inputMode="numeric"
-                           value={localPrice} onChange={e => setLocalPrice(e.target.value)}
-                           onBlur={savePrice} placeholder="0"
-                           className="w-full rounded-xl px-3 py-2 text-[14px] font-bold outline-none"
-                           style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
-                  </div>
-                </div>
+              {/* Agreed price */}
+              <div className="rounded-2xl px-4 py-3" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+                <p className="text-[10px] mb-1" style={{ color: '#A08888' }}>Total acordado (€)</p>
+                <input type="number" inputMode="numeric"
+                       value={localPrice} onChange={e => setLocalPrice(e.target.value)}
+                       onBlur={savePrice} placeholder="0"
+                       className="w-full rounded-xl px-3 py-2 text-[14px] font-bold outline-none"
+                       style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
               </div>
+
+              {/* Payments */}
+              <PaymentsPanel kind="pregnancy" saleId={sale.id}
+                             agreedPrice={parseFloat(localPrice) || sale.agreed_price}
+                             payments={sale.payments} />
             </>
           )}
           <ClientPicker open={buyerPickerOpen} onClose={() => setBuyerPickerOpen(false)}
-                        onSelect={importAsBuyer} title="Seleccionar comprador definitivo" />
+                        onSelect={c => { setBuyerPickerOpen(false); setPendingBuyer(c); setBuyerError(null) }}
+                        title="Comprador del vientre" />
         </div>
       )}
 
@@ -847,10 +755,10 @@ export default function TabVientre({ animal }: { animal: Animal }) {
   // Map pregnancy_id → sale info for per-row badge
   // MUST be before conditional return (Rules of Hooks)
   const saleByPregnancy = useMemo(() => {
-    const map: Record<string, { price: number; status: string }> = {}
+    const map: Record<string, { price: number; status: PaymentStatus }> = {}
     for (const sale of allSales) {
       const pregId = (sale as { pregnancies?: { id: string } }).pregnancies?.id
-      if (pregId) map[pregId] = { price: sale.agreed_price, status: sale.payment_status }
+      if (pregId) map[pregId] = { price: sale.agreed_price, status: summarizePayments(sale.agreed_price, sale.payments).status }
     }
     return map
   }, [allSales])
@@ -863,13 +771,9 @@ export default function TabVientre({ animal }: { animal: Animal }) {
   const pct     = total > 0 ? Math.round((partos / total) * 100) : 0
 
   // Financial summary from pregnancy sales
-  const cobrado = allSales.reduce((s, sale) => s + (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0), 0)
+  const cobrado = allSales.reduce((s, sale) => s + summarizePayments(sale.agreed_price, sale.payments).paid, 0)
   const estimado = allSales.reduce((s, sale) => s + sale.agreed_price, 0)
-  const pendiente = allSales.reduce((s, sale) => {
-    if (sale.payment_status === 'completo') return s
-    const paid = (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0)
-    return s + Math.max(0, sale.agreed_price - paid)
-  }, 0)
+  const pendiente = allSales.reduce((s, sale) => s + summarizePayments(sale.agreed_price, sale.payments).pending, 0)
 
   return (
     <div className="p-3 pb-8 space-y-2.5">
@@ -948,8 +852,8 @@ export default function TabVientre({ animal }: { animal: Animal }) {
                   {sale && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                           style={{
-                            background: sale.status === 'completo' ? '#EAF3EC' : '#FDF3DC',
-                            color:      sale.status === 'completo' ? '#2E6B3E' : '#9C6A00',
+                            background: PAYMENT_STATUS_COLOR[sale.status].bg,
+                            color:      PAYMENT_STATUS_COLOR[sale.status].color,
                           }}>
                       {fmtEur(sale.price)}
                     </span>
