@@ -1,3 +1,4 @@
+import { MeadowIcon } from '../meadow/MeadowIcon'
 import { errMsg } from '../../lib/errors'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -431,7 +432,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
         <div className="space-y-2 pb-4">
           {history.map((entry, i) => {
             const meadowName  = entry.meadows?.name        ?? 'Parcela desconocida'
-            const meadowEmoji = entry.meadows?.icon_emoji  ?? '🌿'
+            const meadowIcon = entry.meadows?.icon_emoji
             const enteredFmt  = format(parseISO(entry.entered_at), "d MMM yyyy", { locale: es })
             const leftFmt     = entry.left_at
               ? format(parseISO(entry.left_at), "d MMM yyyy", { locale: es })
@@ -445,7 +446,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
                      background: isCurrent ? '#EAF3EC' : '#fff',
                      border: `1px solid ${isCurrent ? 'rgba(46,107,62,0.2)' : 'rgba(123,31,58,0.11)'}`,
                    }}>
-                <span className="text-[20px] shrink-0 mt-0.5">{meadowEmoji}</span>
+                <span className="shrink-0 mt-0.5"><MeadowIcon name={meadowIcon} size={26} /></span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-[14px] font-semibold" style={{ color: '#1C1010' }}>{meadowName}</p>
