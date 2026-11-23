@@ -21,6 +21,8 @@ const DEFAULT_AZULEJO: {
   azulejo_bg: string
   azulejo_spot_ink: string
   azulejo_mane_ink: string | null
+  azulejo_ground_ink: string | null
+  azulejo_circle_ink: string | null
   coat_pattern: CoatPattern
   coat_careto: boolean
   coat_cuatroalbo: boolean
@@ -29,6 +31,8 @@ const DEFAULT_AZULEJO: {
   azulejo_bg:       '#F0E4D4',
   azulejo_spot_ink: '#1A100C',
   azulejo_mane_ink: null,
+  azulejo_ground_ink: null,
+  azulejo_circle_ink: null,
   coat_pattern:     'lisa',
   coat_careto:      false,
   coat_cuatroalbo:  false,

@@ -183,7 +183,9 @@ const AnimalCard = memo(function AnimalCard({ animal, onPress }: { animal: Anima
            }}>
         <HorseFigure
           coat={coat}
-          ground="shadow"
+          ground="pedestal"
+          circleInk={animal.azulejo_circle_ink}
+          groundInk={animal.azulejo_ground_ink}
           viewBox="-14 14 248 292"
           style={{ position: 'absolute', inset: '8% 6% 6%', width: '88%', height: '86%' }}
         />

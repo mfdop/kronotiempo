@@ -45,6 +45,8 @@ export interface Animal {
   azulejo_bg?: string
   azulejo_spot_ink?: string
   azulejo_mane_ink?: string | null
+  azulejo_ground_ink?: string | null
+  azulejo_circle_ink?: string | null
   // genealogy
   sire_id?: string             // null if external
   sire_external_name?: string

@@ -62,7 +62,9 @@ export default function HorseStage({ animal }: { animal: Animal }) {
     <div ref={box} className="relative rounded-2xl overflow-hidden select-none"
          style={{
            height: 260,
-           background: 'radial-gradient(120% 90% at 50% 20%, #FFFFFF 0%, #FBF7F0 55%, #F1EADF 100%)',
+           background: animal.azulejo_bg
+             ? `radial-gradient(90% 70% at 50% 40%, rgba(255,255,255,0.35), rgba(255,255,255,0) 70%), ${animal.azulejo_bg}`
+             : 'radial-gradient(120% 90% at 50% 20%, #FFFFFF 0%, #FBF7F0 55%, #F1EADF 100%)',
            border: '1px solid rgba(123,31,58,0.11)',
          }}>
       <style>{HINT_CSS}</style>
@@ -88,6 +90,8 @@ export default function HorseStage({ animal }: { animal: Animal }) {
           anim={current?.id ?? 'idle'}
           live={visible}
           ground="pedestal"
+          circleInk={animal.azulejo_circle_ink}
+          groundInk={animal.azulejo_ground_ink}
           viewBox={VB}
           style={{ width: '100%', height: '100%' }}
         />

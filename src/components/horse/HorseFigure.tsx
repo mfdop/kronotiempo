@@ -72,12 +72,12 @@ function Emote({ e, t, at }: { e: EmoteDef; t: number; at: V2 }) {
 }
 
 // ─── backdrop ───────────────────────────────────────────────────────────────
-function Ground({ kind, cx = 110, rx = 96 }: { kind: 'shadow' | 'pedestal' | 'none'; cx?: number; rx?: number }) {
+function Ground({ kind, cx = 110, rx = 96, circleInk, groundInk }: { kind: 'shadow' | 'pedestal' | 'none'; cx?: number; rx?: number; circleInk?: string | null; groundInk?: string | null }) {
   if (kind === 'none') return null
   return (
     <>
-      {kind === 'pedestal' && <ellipse cx={96} cy={150} rx={104} ry={128} transform="rotate(-24 96 150)" fill="#D9DDC6" />}
-      <ellipse cx={cx} cy={GROUND + 1} rx={rx} ry={8} fill={kind === 'pedestal' ? '#C1C5A2' : 'rgba(40,30,20,.16)'} />
+      {kind === 'pedestal' && <ellipse cx={96} cy={150} rx={104} ry={128} transform="rotate(-24 96 150)" fill={circleInk ?? '#D9DDC6'} />}
+      <ellipse cx={cx} cy={GROUND + 1} rx={rx} ry={8} fill={groundInk ?? (kind === 'pedestal' ? '#C1C5A2' : 'rgba(40,30,20,.16)')} />
     </>
   )
 }
@@ -116,6 +116,9 @@ export interface HorseFigureProps {
   live?: boolean
   /** 'pedestal' = pale green backdrop blob + ground ellipse (stage), 'shadow' = ground ellipse only. */
   ground?: 'shadow' | 'pedestal' | 'none'
+  /** Custom backdrop circle / ground ellipse colours (null = default tones). */
+  circleInk?: string | null
+  groundInk?: string | null
   viewBox?: string
   className?: string
   style?: CSSProperties
@@ -126,7 +129,7 @@ export interface HorseFigureProps {
 }
 
 export function HorseFigure({
-  coat, anim = 'idle', live = false, ground = 'shadow',
+  coat, anim = 'idle', live = false, ground = 'shadow', circleInk, groundInk,
   viewBox = HORSE_VIEWBOX, className, style, pose: poseName = 'stand', icon = false,
 }: HorseFigureProps) {
   const uid = 'hz' + useId().replace(/[^a-zA-Z0-9]/g, '')
@@ -148,7 +151,7 @@ export function HorseFigure({
   return (
     <svg viewBox={viewBox} className={className} style={{ display: 'block', overflow: 'visible', ...style }}
          preserveAspectRatio="xMidYMid meet" role="img" aria-label="Caballo">
-      <Ground kind={ground} rx={Math.max(60, Math.min(120, main.art.box[2] * 0.48)) * (1 + Math.min(0, lift) / 40)}
+      <Ground kind={ground} circleInk={circleInk} groundInk={groundInk} rx={Math.max(60, Math.min(120, main.art.box[2] * 0.48)) * (1 + Math.min(0, lift) / 40)}
               cx={main.art.box[0] + main.art.box[2] * 0.5} />
       {idle ? (
         // breathing: slow vertical swell anchored on the ground line

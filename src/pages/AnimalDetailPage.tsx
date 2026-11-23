@@ -57,6 +57,7 @@ export default function AnimalDetailPage() {
 
   const handleAzulejoSave = (vals: {
     azulejo_ink: string; azulejo_bg: string; azulejo_spot_ink: string; azulejo_mane_ink: string | null
+    azulejo_ground_ink: string | null; azulejo_circle_ink: string | null
     coat_pattern: string; coat_careto: boolean; coat_cuatroalbo: boolean
   }) => {
     updateAnimal.mutate({
@@ -65,6 +66,8 @@ export default function AnimalDetailPage() {
       azulejo_bg:       vals.azulejo_bg,
       azulejo_spot_ink: vals.azulejo_spot_ink,
       azulejo_mane_ink: vals.azulejo_mane_ink,
+      azulejo_ground_ink: vals.azulejo_ground_ink,
+      azulejo_circle_ink: vals.azulejo_circle_ink,
       coat_pattern:     vals.coat_pattern as import('../types').CoatPattern,
       coat_careto:      vals.coat_careto,
       coat_cuatroalbo:  vals.coat_cuatroalbo,
@@ -143,6 +146,8 @@ export default function AnimalDetailPage() {
           azulejo_bg:       animal.azulejo_bg       ?? '#F0E4D4',
           azulejo_spot_ink: animal.azulejo_spot_ink ?? '#1A100C',
           azulejo_mane_ink: animal.azulejo_mane_ink ?? null,
+          azulejo_ground_ink: animal.azulejo_ground_ink ?? null,
+          azulejo_circle_ink: animal.azulejo_circle_ink ?? null,
           coat_pattern:     animal.coat_pattern     ?? 'lisa',
           coat_careto:      animal.coat_careto      ?? false,
           coat_cuatroalbo:  animal.coat_cuatroalbo  ?? false,
