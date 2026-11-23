@@ -5,11 +5,11 @@ import { useUpdateAnimal, useDeleteAnimal } from '../../hooks/useAnimals'
 import { useMeadow, useAnimalMeadowHistory } from '../../hooks/useMeadows'
 import { DeleteZone, BottomSheet } from '../ui'
 import type { Animal } from '../../types'
+import { BREEDS } from '../../lib/constants'
 import { format, parseISO, differenceInYears, differenceInMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import HorseStage from './HorseStage'
 
-const BREEDS = ['Appaloosa','PRE','PRD','Anglo-Árabe','Árabe','Quarter Horse','Paint Horse','Lusitano','Hannoveriano','Otra']
 const SEXES  = [
   { value: 'semental', label: 'Semental' },
   { value: 'yegua',    label: 'Yegua' },
@@ -89,11 +89,11 @@ export default function TabInfo({ animal }: { animal: Animal }) {
     purchase_price:  animal.purchase_price?.toString()  ?? '',
     purchase_date:   animal.purchase_date   ?? '',
     purchase_origin: animal.purchase_origin ?? '',
-    ios_album:       animal.ios_album       ?? '',
     description:     animal.description     ?? '',
     private_notes:   animal.private_notes   ?? '',
     custody_owner_name:  animal.custody_owner_name  ?? '',
     custody_owner_phone: animal.custody_owner_phone ?? '',
+    custody_owner_dni:   animal.custody_owner_dni   ?? '',
   })
   const set = (k: string, v: string) => setF(p => ({ ...p, [k]: v }))
 
@@ -115,11 +115,11 @@ export default function TabInfo({ animal }: { animal: Animal }) {
         purchase_price:  f.purchase_price  ? parseFloat(f.purchase_price)  : null,
         purchase_date:   f.purchase_date   || null,
         purchase_origin: f.purchase_origin || null,
-        ios_album:       f.ios_album       || null,
         description:     f.description     || null,
         private_notes:   f.private_notes   || null,
         custody_owner_name:  f.custody_owner_name  || null,
         custody_owner_phone: f.custody_owner_phone || null,
+        custody_owner_dni:   f.custody_owner_dni   || null,
       } as Partial<Animal> & { id: string })
       setEditing(false)
     } catch (e: unknown) {
@@ -197,7 +197,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
           {editing
             ? <select value={f.breed} onChange={e => set('breed', e.target.value)}
                       className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none appearance-none"
-                      style={inp.style}>{BREEDS.map(b => <option key={b}>{b}</option>)}</select>
+                      style={inp.style}>{(BREEDS.includes(f.breed as never) || !f.breed ? [...BREEDS] : [f.breed, ...BREEDS]).map(b => <option key={b}>{b}</option>)}</select>
             : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.breed || '—'}</p>}
         </div>
         <div>
@@ -207,7 +207,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
             : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{ageStr(animal.birth_date) ?? '—'}</p>}
         </div>
         <div>
-          <Label>Nº registro / pasaporte</Label>
+          <Label>Nº registro / UELN</Label>
           {editing
             ? <input value={f.registry_number} onChange={e => set('registry_number', e.target.value)} placeholder="ESP-APP-2020-00001" {...inp} />
             : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.registry_number || '—'}</p>}
@@ -255,6 +255,12 @@ export default function TabInfo({ animal }: { animal: Animal }) {
             {editing
               ? <input type="tel" value={f.custody_owner_phone} onChange={e => set('custody_owner_phone', e.target.value)} {...inp} />
               : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.custody_owner_phone || '—'}</p>}
+          </div>
+          <div>
+            <Label>DNI del propietario</Label>
+            {editing
+              ? <input value={f.custody_owner_dni} onChange={e => set('custody_owner_dni', e.target.value)} {...inp} />
+              : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.custody_owner_dni || '—'}</p>}
           </div>
         </Section>
       )}
@@ -339,32 +345,6 @@ export default function TabInfo({ animal }: { animal: Animal }) {
           </>
         )}
       </Section>
-
-      {/* ÁLBUM IOS */}
-      <div className="rounded-2xl overflow-hidden"
-           style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#E8F0F8' }}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#1A4F7A" strokeWidth="2" strokeLinecap="round">
-              <rect x="3" y="3" width="18" height="18" rx="3"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21,15 16,10 5,21"/>
-            </svg>
-          </div>
-          <div className="flex-1">
-            <p className="text-[11px]" style={{ color: '#A08888' }}>Álbum de fotos en iOS</p>
-            {editing
-              ? <input value={f.ios_album} onChange={e => set('ios_album', e.target.value)}
-                       placeholder="Ej: Relámpago 2024"
-                       className="w-full text-[13px] font-semibold outline-none mt-0.5 bg-transparent"
-                       style={{ color: '#1A4F7A', border: 'none' }} />
-              : <p className="text-[13px] font-semibold mt-0.5"
-                   style={{ color: f.ios_album ? '#1A4F7A' : '#A08888', fontStyle: f.ios_album ? 'normal' : 'italic' }}>
-                  {animal.ios_album || 'Sin álbum asignado'}
-                </p>}
-          </div>
-        </div>
-      </div>
 
       {/* DESCRIPCIÓN */}
       <Section title="Descripción">

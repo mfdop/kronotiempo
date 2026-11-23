@@ -6,8 +6,8 @@ import { useAuth } from '../hooks/useAuth'
 import { Field, GranateButton, GhostButton, inputStyle } from '../components/ui'
 import { Azulejo, AzulejoCustomizer } from '../components/horse/Azulejo'
 import type { Animal, CoatPattern } from '../types'
+import { BREEDS } from '../lib/constants'
 
-const BREEDS = ['Appaloosa','PRE','PRD','Anglo-Árabe','Árabe','Quarter Horse','Paint Horse','Lusitano','Hannoveriano','Otra']
 const SEXES  = [
   { value: 'semental', label: 'Semental' },
   { value: 'yegua',    label: 'Yegua' },
@@ -49,12 +49,12 @@ export default function NuevoAnimalPage() {
     // custodia
     custody_owner_name: '',
     custody_owner_phone: '',
+    custody_owner_dni: '',
     // economics
     purchase_price: '',
     purchase_date: '',
     purchase_origin: '',
     // notes
-    ios_album: '',
     description: '',
     private_notes: '',
   })
@@ -85,7 +85,7 @@ export default function NuevoAnimalPage() {
         chip: form.chip || undefined,
         custody_owner_name: isCustodia ? (form.custody_owner_name || undefined) : undefined,
         custody_owner_phone: isCustodia ? (form.custody_owner_phone || undefined) : undefined,
-        ios_album: form.ios_album || undefined,
+        custody_owner_dni: isCustodia ? (form.custody_owner_dni || undefined) : undefined,
         description: form.description || undefined,
         private_notes: form.private_notes || undefined,
         purchase_origin: isComprado ? (form.purchase_origin || undefined) : undefined,
@@ -194,7 +194,7 @@ export default function NuevoAnimalPage() {
                    style={{ ...inputStyle, background: '#F7F3EE' }} />
           </Field>
 
-          <Field label="Nº registro / pasaporte">
+          <Field label="Nº registro / UELN">
             <input value={form.registry_number} onChange={e => set('registry_number', e.target.value)}
                    placeholder="ESP-APP-2020-00001" className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                    style={{ ...inputStyle, background: '#F7F3EE' }} />
@@ -219,6 +219,11 @@ export default function NuevoAnimalPage() {
             <Field label="Teléfono del propietario">
               <input type="tel" value={form.custody_owner_phone} onChange={e => set('custody_owner_phone', e.target.value)}
                      placeholder="600 000 000" className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                     style={{ ...inputStyle, background: '#fff' }} />
+            </Field>
+            <Field label="DNI del propietario">
+              <input value={form.custody_owner_dni} onChange={e => set('custody_owner_dni', e.target.value)}
+                     placeholder="12345678A" className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                      style={{ ...inputStyle, background: '#fff' }} />
             </Field>
           </div>
@@ -268,11 +273,6 @@ export default function NuevoAnimalPage() {
         {/* MISC */}
         <div className="p-4 rounded-2xl space-y-3" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
           <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Otros</p>
-          <Field label="Álbum iOS (nombre del álbum de fotos)">
-            <input value={form.ios_album} onChange={e => set('ios_album', e.target.value)}
-                   placeholder="Ej: Relámpago 2024" className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
-                   style={{ ...inputStyle, background: '#F7F3EE' }} />
-          </Field>
           <Field label="Descripción">
             <textarea value={form.description} onChange={e => set('description', e.target.value)}
                       rows={3} placeholder="Descripción libre..."

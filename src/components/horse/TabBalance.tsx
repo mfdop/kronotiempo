@@ -4,6 +4,7 @@ import {
   usePregnancySalesForMare,
   useMaintenanceEntries,
 } from '../../hooks/useReproduction'
+import { summarizePayments } from '../../lib/payments'
 import type { Animal } from '../../types'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -52,44 +53,31 @@ function Timeline({ items }: { items: TimelineItem[] }) {
 
 // ─── SEMENTAL BALANCE ─────────────────────────────────────────────────────────
 
-function SementalBalance({ animal, foals }: { animal: Animal; foals: Animal[] }) {
+// Stallions only count cubriciones (semen sales); foal sales belong to the dam.
+function SementalBalance({ animal }: { animal: Animal }) {
   const { data: sales } = useSemenSales(animal.id)
 
-  const totalCobrado = (sales ?? []).reduce((s, sale) => {
-    return s + (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0)
-  }, 0)
-  const totalPendiente = (sales ?? []).reduce((s, sale) => {
-    if (sale.payment_status === 'completo') return s
-    const cobrado = (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0)
-    return s + Math.max(0, sale.agreed_price - cobrado)
-  }, 0)
-  const foalIncome = foals.filter(f => f.sold_price).reduce((s, f) => s + (f.sold_price ?? 0), 0)
+  const totalCobrado = (sales ?? []).reduce((s, sale) => s + summarizePayments(sale.agreed_price, sale.payments).paid, 0)
+  const totalPendiente = (sales ?? []).reduce((s, sale) => s + summarizePayments(sale.agreed_price, sale.payments).pending, 0)
   const acquisition = animal.purchase_price ?? 0
 
-  const net = totalCobrado + foalIncome - acquisition
+  const net = totalCobrado - acquisition
 
   const items: TimelineItem[] = [
     ...(acquisition > 0 ? [{ date: animal.purchase_date ?? '—', label: 'Adquisición', amount: acquisition, sign: '-' as const, color: '#8C1F1F' }] : []),
-    ...(sales ?? []).map(s => ({
-      date: s.created_at.slice(0, 10),
-      label: `Cubrición${s.mare_name ? ` · ${s.mare_name}` : ''}`,
-      amount: (s.deposit_amount ?? 0) + (s.final_amount ?? 0),
+    ...(sales ?? []).flatMap(s => (s.payments ?? []).map(p => ({
+      date: p.paid_date,
+      label: `Cubrición${s.mare_name ? ` · ${s.mare_name}` : ''}${p.method ? ` (${p.method})` : ''}`,
+      amount: Number(p.amount),
       sign: '+' as const,
       color: '#2E6B3E',
-    })),
-    ...foals.filter(f => f.sold_price).map(f => ({
-      date: f.sold_date ?? '—',
-      label: `Cría vendida · ${f.name}`,
-      amount: f.sold_price ?? 0,
-      sign: '+' as const,
-      color: '#2E6B3E',
-    })),
+    }))),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
   return (
     <>
       <div className="flex gap-3">
-        <SummaryCard label="Cobrado" value={totalCobrado + foalIncome} color="#2E6B3E" />
+        <SummaryCard label="Cobrado" value={totalCobrado} color="#2E6B3E" />
         {totalPendiente > 0 && <SummaryCard label="Pendiente" value={totalPendiente} color="#9C6A00" />}
         {acquisition > 0 && <SummaryCard label="Inversión" value={acquisition} color="#8C1F1F" />}
       </div>
@@ -109,27 +97,21 @@ function SementalBalance({ animal, foals }: { animal: Animal; foals: Animal[] })
 function YeguaBalance({ animal, foals }: { animal: Animal; foals: Animal[] }) {
   const { data: pregSales } = usePregnancySalesForMare(animal.id)
 
-  const totalCobrado = (pregSales ?? []).reduce((s, sale) => {
-    return s + (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0)
-  }, 0)
-  const totalPendiente = (pregSales ?? []).reduce((s, sale) => {
-    if (sale.payment_status === 'completo') return s
-    const cobrado = (sale.deposit_amount ?? 0) + (sale.final_amount ?? 0)
-    return s + Math.max(0, sale.agreed_price - cobrado)
-  }, 0)
+  const totalCobrado = (pregSales ?? []).reduce((s, sale) => s + summarizePayments(sale.agreed_price, sale.payments).paid, 0)
+  const totalPendiente = (pregSales ?? []).reduce((s, sale) => s + summarizePayments(sale.agreed_price, sale.payments).pending, 0)
   const foalIncome = foals.filter(f => f.sold_price).reduce((s, f) => s + (f.sold_price ?? 0), 0)
   const acquisition = animal.purchase_price ?? 0
   const net = totalCobrado + foalIncome - acquisition
 
   const items: TimelineItem[] = [
     ...(acquisition > 0 ? [{ date: animal.purchase_date ?? '—', label: 'Adquisición', amount: acquisition, sign: '-' as const, color: '#8C1F1F' }] : []),
-    ...(pregSales ?? []).map(s => ({
-      date: (s as { pregnancies?: { actual_birth_date?: string } }).pregnancies?.actual_birth_date ?? s.created_at.slice(0, 10),
-      label: `Venta de vientre`,
-      amount: (s.deposit_amount ?? 0) + (s.final_amount ?? 0),
+    ...(pregSales ?? []).flatMap(s => (s.payments ?? []).map(p => ({
+      date: p.paid_date,
+      label: `Venta de vientre${p.method ? ` (${p.method})` : ''}`,
+      amount: Number(p.amount),
       sign: '+' as const,
       color: '#2E6B3E',
-    })),
+    }))),
     ...foals.filter(f => f.sold_price).map(f => ({
       date: f.sold_date ?? '—',
       label: `Cría vendida · ${f.name}`,
@@ -210,7 +192,7 @@ function DefaultBalance({ animal }: { animal: Animal }) {
 
 export default function TabBalance({ animal }: { animal: Animal }) {
   const { data: animals } = useAnimals()
-  const foals = (animals ?? []).filter(a => (a.sire_id === animal.id || a.dam_id === animal.id) && a.sold_price)
+  const foals = (animals ?? []).filter(a => a.dam_id === animal.id && a.sold_price)
 
   const isMale   = animal.sex === 'semental'
   const isFemale = animal.sex === 'yegua' || animal.sex === 'potra'
@@ -224,7 +206,7 @@ export default function TabBalance({ animal }: { animal: Animal }) {
         </p>
 
         {isCustodia && <CustodiaBalance animal={animal} />}
-        {!isCustodia && isMale && <SementalBalance animal={animal} foals={foals} />}
+        {!isCustodia && isMale && <SementalBalance animal={animal} />}
         {!isCustodia && isFemale && <YeguaBalance animal={animal} foals={foals} />}
         {!isCustodia && !isMale && !isFemale && <DefaultBalance animal={animal} />}
       </div>

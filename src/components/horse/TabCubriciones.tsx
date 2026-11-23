@@ -1,14 +1,18 @@
 import { errMsg } from '../../lib/errors'
-import { useState, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
-  useSemenSales, useCreateSemenSale, useUpdateSemenSale, useUpsertSemenShipping,
+  useSemenSales, useCreateSemenSale, useUpdateSemenSale, useUpsertSemenShipping, useCreatePayment,
   useDeleteSemenSale,
 } from '../../hooks/useReproduction'
 import { ClientPicker } from '../ui/ClientPicker'
 import type { ClientBasic } from '../ui/ClientPicker'
+import PaymentsPanel from './PaymentsPanel'
+import { summarizePayments, PAYMENT_STATUS_COLOR, PAYMENT_STATUS_LABEL } from '../../lib/payments'
+import type { Payment } from '../../types'
 import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton, DeleteZone } from '../ui'
 import type { Animal, SemenSale, SemenShipping, ShippingResult } from '../../types'
 import { format, parseISO } from 'date-fns'
+import { MAX_SHIPPING_ATTEMPTS, SHIPPING_ORDINALS } from '../../lib/constants'
 import { es } from 'date-fns/locale'
 
 // ─── TYPES ───────────────────────────────────────────────────
@@ -16,26 +20,20 @@ type ClientRow = {
   id: string; name: string; phone?: string | null
   instagram?: string | null; city?: string | null; stable_name?: string | null
 }
-type SaleWithData = SemenSale & { clients: ClientRow; semen_shippings: SemenShipping[] }
+type SaleWithData = SemenSale & { clients: ClientRow; semen_shippings: SemenShipping[]; payments: Payment[] }
 
 // ─── HELPERS ─────────────────────────────────────────────────
 function initials(name: string) {
   return name.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase()
 }
 
-const PAYMENT_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  completo:    { label: 'Pago completo',  color: '#2E6B3E', bg: '#EAF3EC' },
-  reserva:     { label: 'Reserva pagada', color: '#9C6A00', bg: '#FDF3DC' },
-  sin_reserva: { label: 'Sin reserva',    color: '#8C1F1F', bg: '#FCEAEA' },
-}
-
-function getShipping(shippings: SemenShipping[], n: 1 | 2 | 3) {
+function getShipping(shippings: SemenShipping[], n: 1 | 2 | 3 | 4 | 5) {
   return shippings.find(s => s.attempt_number === n)
 }
 
-function isUnlocked(shippings: SemenShipping[], n: 1 | 2 | 3) {
+function isUnlocked(shippings: SemenShipping[], n: 1 | 2 | 3 | 4 | 5) {
   if (n === 1) return true
-  const prev = getShipping(shippings, (n - 1) as 1 | 2 | 3)
+  const prev = getShipping(shippings, (n - 1) as 1 | 2 | 3 | 4 | 5)
   return prev?.result === 'sin_prenez'
 }
 
@@ -43,15 +41,9 @@ function hasPrenez(shippings: SemenShipping[]) {
   return shippings.some(s => s.result === 'prenez')
 }
 
-function paymentBarWidth(status: string) {
-  if (status === 'completo') return '100%'
-  if (status === 'reserva')  return '35%'
-  return '0%'
-}
-
 // ─── SHIPPING DOT ─────────────────────────────────────────────
 function ShipDot({ n, shipping, unlocked }: {
-  n: 1 | 2 | 3
+  n: 1 | 2 | 3 | 4 | 5
   shipping?: SemenShipping
   unlocked: boolean
 }) {
@@ -97,7 +89,7 @@ function ShipDot({ n, shipping, unlocked }: {
 function ShipLabel({ shippings }: { shippings: SemenShipping[] }) {
   const prenezShip = shippings.find(s => s.result === 'prenez')
   if (prenezShip) {
-    const ord = prenezShip.attempt_number === 1 ? '1.er' : prenezShip.attempt_number === 2 ? '2.º' : '3.er'
+    const ord = SHIPPING_ORDINALS[prenezShip.attempt_number - 1]
     return <span style={{ color: '#2E6B3E', fontWeight: 600 }}>Preñez · {ord} envío</span>
   }
   const espera = shippings.find(s => s.result === 'espera')
@@ -114,16 +106,16 @@ function ShipLabel({ shippings }: { shippings: SemenShipping[] }) {
     )
   }
   // Next available shipping
-  for (const n of [1, 2, 3] as const) {
+  for (const n of [1, 2, 3, 4, 5] as const) {
     const s = getShipping(shippings, n)
     if (!s && isUnlocked(shippings, n)) {
       if (shippings.length === 0) return <span style={{ color: '#A08888' }}>Pendiente de envío</span>
       // previous had sin_prenez → next is ready
-      return <span style={{ color: '#1A4F7A', fontWeight: 600 }}>Envío {n}.º disponible</span>
+      return <span style={{ color: '#1A4F7A', fontWeight: 600 }}>Envío {SHIPPING_ORDINALS[n - 1]} disponible</span>
     }
   }
-  // All 3 attempts sin_prenez
-  return <span style={{ color: '#8C1F1F', fontWeight: 600 }}>Sin preñez · 3 intentos</span>
+  // All attempts sin_prenez
+  return <span style={{ color: '#8C1F1F', fontWeight: 600 }}>Sin preñez · {MAX_SHIPPING_ATTEMPTS} intentos</span>
 }
 
 // ─── ADD SALE SHEET ───────────────────────────────────────────
@@ -132,15 +124,18 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
 }) {
   const create          = useCreateSemenSale()
   const upsertShipping  = useUpsertSemenShipping()
+  const createPayment   = useCreatePayment()
   const [client, setClient]   = useState<ClientBasic | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [form, setForm] = useState({
     mare_name:       '',
+    mare_birth_date: '',
+    mare_chip:       '',
+    mare_ueln:       '',
     agreed_price:    '',
-    deposit_amount:  '',
-    payment_status:  'sin_reserva' as 'sin_reserva' | 'reserva' | 'completo',
+    initial_payment: '',
     estimated_date:  '',
     notes:           '',
   })
@@ -158,12 +153,22 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
         stallion_id:    stallionId,
         client_id:      client.id,
         mare_name:      form.mare_name || undefined,
+        mare_birth_date: form.mare_birth_date || undefined,
+        mare_chip:      form.mare_chip || undefined,
+        mare_ueln:      form.mare_ueln || undefined,
         agreed_price:   +form.agreed_price,
-        deposit_amount: form.deposit_amount ? +form.deposit_amount : undefined,
-        payment_status: form.payment_status,
         year:           new Date().getFullYear(),
         notes:          form.notes || undefined,
       } as Omit<SemenSale, 'id' | 'created_at'>)
+
+      if (form.initial_payment && +form.initial_payment > 0) {
+        await createPayment.mutateAsync({
+          semen_sale_id: sale.id,
+          amount:        +form.initial_payment,
+          paid_date:     format(new Date(), 'yyyy-MM-dd'),
+          notes:         'Pago inicial',
+        })
+      }
 
       if (form.estimated_date) {
         await upsertShipping.mutateAsync({
@@ -175,7 +180,7 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
       }
       onSaved(); onClose()
       setClient(null)
-      setForm({ mare_name: '', agreed_price: '', deposit_amount: '', payment_status: 'sin_reserva', estimated_date: '', notes: '' })
+      setForm({ mare_name: '', mare_birth_date: '', mare_chip: '', mare_ueln: '', agreed_price: '', initial_payment: '', estimated_date: '', notes: '' })
     } catch (e: unknown) {
       setError(errMsg(e))
     }
@@ -223,6 +228,27 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
         </Field>
 
         <div className="flex gap-2">
+          <Field label="Nacimiento yegua">
+            <input type="date" value={form.mare_birth_date} onChange={e => set('mare_birth_date', e.target.value)}
+                   className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                   style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+          </Field>
+          <Field label="Chip yegua">
+            <input value={form.mare_chip} onChange={e => set('mare_chip', e.target.value)}
+                   placeholder="Nº de chip"
+                   className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                   style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+          </Field>
+        </div>
+
+        <Field label="UELN yegua">
+          <input value={form.mare_ueln} onChange={e => set('mare_ueln', e.target.value)}
+                 placeholder="Nº UELN"
+                 className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                 style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
+        </Field>
+
+        <div className="flex gap-2">
           <Field label="Precio acordado *">
             <input type="number" inputMode="numeric" value={form.agreed_price}
                    onChange={e => set('agreed_price', e.target.value)}
@@ -230,34 +256,14 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
                    className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                    style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
           </Field>
-          <Field label="Reserva">
-            <input type="number" inputMode="numeric" value={form.deposit_amount}
-                   onChange={e => set('deposit_amount', e.target.value)}
+          <Field label="Pago inicial">
+            <input type="number" inputMode="numeric" value={form.initial_payment}
+                   onChange={e => set('initial_payment', e.target.value)}
                    placeholder="0"
                    className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                    style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
           </Field>
         </div>
-
-        <Field label="Estado del pago">
-          <div className="flex gap-2">
-            {(['sin_reserva', 'reserva', 'completo'] as const).map(s => {
-              const p = PAYMENT_LABEL[s]
-              const isActive = form.payment_status === s
-              return (
-                <button key={s} onClick={() => set('payment_status', s)}
-                        className="flex-1 py-2 rounded-xl text-[11px] font-semibold"
-                        style={{
-                          background: isActive ? p.color : '#F7F3EE',
-                          color: isActive ? '#fff' : '#6B5555',
-                          border: `1.5px solid ${isActive ? p.color : 'rgba(123,31,58,0.22)'}`,
-                        }}>
-                  {p.label}
-                </button>
-              )
-            })}
-          </div>
-        </Field>
 
         <Field label="Fecha estimada primer envío" hint="Opcional">
           <input type="date" value={form.estimated_date} onChange={e => set('estimated_date', e.target.value)}
@@ -292,7 +298,7 @@ function AddSaleSheet({ open, onClose, stallionId, onSaved }: {
 
 // ─── SHIPPING CARD (inside detail sheet) ─────────────────────
 function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChange }: {
-  n: 1 | 2 | 3
+  n: 1 | 2 | 3 | 4 | 5
   shipping?: SemenShipping
   unlocked: boolean
   saleId: string
@@ -302,8 +308,14 @@ function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChan
   const upsert = useUpsertSemenShipping()
   const [dateInput, setDateInput] = useState(shipping?.estimated_date ?? '')
   const [editDate, setEditDate]   = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
-  const ordinal = n === 1 ? '1.er' : n === 2 ? '2.º' : '3.er'
+  // keep the input in sync with the persisted value
+  useEffect(() => {
+    if (!editDate) setDateInput(shipping?.estimated_date ?? '')
+  }, [shipping?.estimated_date, editDate])
+
+  const ordinal = SHIPPING_ORDINALS[n - 1]
 
   const RESULTS: { v: ShippingResult; label: string; color: string }[] = [
     { v: 'prenez',    label: 'Preñez',      color: '#2E6B3E' },
@@ -315,26 +327,26 @@ function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChan
 
   const setResult = (result: ShippingResult) => {
     onResultChange(result)
+    setSaveError(null)
     upsert.mutate({
-      id:             shipping?.id,
       semen_sale_id:  saleId,
       attempt_number: n,
       result,
-      estimated_date: shipping?.estimated_date,
-      actual_date:    shipping?.actual_date,
-    })
+    }, { onError: e => setSaveError(errMsg(e)) })
   }
 
   const saveDate = () => {
     if (!dateInput) return
+    setSaveError(null)
     upsert.mutate({
-      id:             shipping?.id,
       semen_sale_id:  saleId,
       attempt_number: n,
       result:         activeResult ?? 'espera',
       estimated_date: dateInput,
+    }, {
+      onSuccess: () => setEditDate(false),
+      onError:   e => setSaveError(errMsg(e)),
     })
-    setEditDate(false)
   }
 
   const fakeShipping = activeResult !== undefined
@@ -380,6 +392,9 @@ function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChan
               </button>
             </div>
           )}
+          {saveError && (
+            <p className="text-[12px] px-4 py-2" style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{saveError}</p>
+          )}
           <div className="flex gap-2 px-4 py-2.5">
             {RESULTS.map(({ v, label, color }) => {
               const isActive = activeResult === v
@@ -402,31 +417,114 @@ function ShippingCard({ n, shipping, unlocked, saleId, localResult, onResultChan
   )
 }
 
+// ─── MARE DATA CARD (editable, inside detail sheet) ───────────
+function MareDataCard({ sale }: { sale: SaleWithData }) {
+  const update = useUpdateSemenSale()
+  const [editing, setEditing] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [f, setF] = useState({ mare_name: '', mare_birth_date: '', mare_chip: '', mare_ueln: '' })
+
+  const open = () => {
+    setF({
+      mare_name:       sale.mare_name       ?? '',
+      mare_birth_date: sale.mare_birth_date ?? '',
+      mare_chip:       sale.mare_chip       ?? '',
+      mare_ueln:       sale.mare_ueln       ?? '',
+    })
+    setErr(null); setEditing(true)
+  }
+  const save = () => {
+    setErr(null)
+    update.mutate({
+      id: sale.id,
+      mare_name:       f.mare_name.trim()  || null,
+      mare_birth_date: f.mare_birth_date   || null,
+      mare_chip:       f.mare_chip.trim()  || null,
+      mare_ueln:       f.mare_ueln.trim()  || null,
+    } as unknown as Partial<SemenSale> & { id: string }, {
+      onSuccess: () => setEditing(false),
+      onError:   e => setErr(errMsg(e)),
+    })
+  }
+
+  const inp = { background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }
+  const birth = (() => {
+    try { return sale.mare_birth_date ? format(parseISO(sale.mare_birth_date), 'd MMM yyyy', { locale: es }) : '' } catch { return '' }
+  })()
+  const rows: [string, string][] = ([
+    ['Nombre', sale.mare_name ?? ''],
+    ['Nacimiento', birth],
+    ['Chip', sale.mare_chip ?? ''],
+    ['UELN', sale.mare_ueln ?? ''],
+  ] as [string, string][])
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2.5 px-1">
+        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Datos de la yegua</p>
+        {!editing && (
+          <button onClick={open} className="text-[12px] font-bold" style={{ color: '#7B1F3A' }}>Editar</button>
+        )}
+      </div>
+      <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
+        {editing ? (
+          <div className="p-4 space-y-3">
+            <Field label="Nombre">
+              <input value={f.mare_name} onChange={e => setF(p => ({ ...p, mare_name: e.target.value }))}
+                     className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none" style={inp} />
+            </Field>
+            <Field label="Fecha de nacimiento">
+              <input type="date" value={f.mare_birth_date} onChange={e => setF(p => ({ ...p, mare_birth_date: e.target.value }))}
+                     className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none" style={inp} />
+            </Field>
+            <Field label="Chip">
+              <input value={f.mare_chip} onChange={e => setF(p => ({ ...p, mare_chip: e.target.value }))}
+                     className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none" style={inp} />
+            </Field>
+            <Field label="UELN">
+              <input value={f.mare_ueln} onChange={e => setF(p => ({ ...p, mare_ueln: e.target.value }))}
+                     className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none" style={inp} />
+            </Field>
+            {err && (
+              <p className="text-[13px] rounded-xl px-4 py-2.5" style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{err}</p>
+            )}
+            <GranateButton onClick={save} disabled={update.isPending} fullWidth>
+              {update.isPending ? 'Guardando...' : 'Guardar'}
+            </GranateButton>
+            <GhostButton onClick={() => setEditing(false)} fullWidth>Cancelar</GhostButton>
+          </div>
+        ) : (
+          rows.map(([label, value], i) => (
+            <div key={label} className="flex justify-between px-4 py-2.5"
+                 style={{ borderTop: i > 0 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
+              <span className="text-[13px]" style={{ color: '#6B5555' }}>{label}</span>
+              <span className="text-[13px] font-semibold text-right max-w-[60%] break-all"
+                    style={{ color: value ? '#1C1010' : '#A08888', fontWeight: value ? 600 : 400 }}>
+                {value || '—'}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── SALE DETAIL SHEET ────────────────────────────────────────
 function SaleDetailSheet({ open, onClose, sale, stallionId }: {
   open: boolean; onClose: () => void; sale: SaleWithData; stallionId: string
 }) {
-  const updateSale   = useUpdateSemenSale()
   const deleteSale   = useDeleteSemenSale(stallionId)
   const c = sale.clients
-  const [localStatus, setLocalStatus]   = useState(sale.payment_status)
-  const [localResults, setLocalResults] = useState<Partial<Record<1|2|3, ShippingResult>>>({})
+  const [localResults, setLocalResults] = useState<Partial<Record<1|2|3|4|5, ShippingResult>>>({})
 
-  const getEffectiveResult = (n: 1|2|3): ShippingResult | undefined =>
+  const getEffectiveResult = (n: 1|2|3|4|5): ShippingResult | undefined =>
     localResults[n] ?? getShipping(sale.semen_shippings, n)?.result
 
-  const isLocallyUnlocked = (n: 1|2|3): boolean => {
+  const isLocallyUnlocked = (n: 1|2|3|4|5): boolean => {
     if (n === 1) return true
-    return getEffectiveResult((n - 1) as 1|2|3) === 'sin_prenez'
+    return getEffectiveResult((n - 1) as 1|2|3|4|5) === 'sin_prenez'
   }
-
-  const updatePayment = (status: 'sin_reserva' | 'reserva' | 'completo') => {
-    setLocalStatus(status)
-    updateSale.mutate({ id: sale.id, payment_status: status })
-  }
-
-  const pl     = PAYMENT_LABEL[localStatus]
-  const barW   = paymentBarWidth(localStatus)
 
   const saleDate = (() => {
     try { return format(parseISO(sale.created_at), 'd MMM yyyy', { locale: es }) } catch { return '' }
@@ -438,64 +536,7 @@ function SaleDetailSheet({ open, onClose, sale, stallionId }: {
       <div className="space-y-4">
 
         {/* PAYMENT */}
-        <div className="rounded-2xl overflow-hidden"
-             style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-          <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
-            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>
-              Estado del pago · {sale.agreed_price.toLocaleString('es-ES')} €
-            </p>
-          </div>
-          <div className="px-4 pt-3">
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F7F3EE' }}>
-              <div className="h-full rounded-full transition-all"
-                   style={{ width: barW, background: pl.color }} />
-            </div>
-          </div>
-          <div className="flex gap-2 px-4 py-3">
-            {(['sin_reserva', 'reserva', 'completo'] as const).map(s => {
-              const p = PAYMENT_LABEL[s]
-              const isActive = localStatus === s
-              return (
-                <button key={s} onClick={() => updatePayment(s)}
-                        className="flex-1 py-2 rounded-xl text-[11px] font-semibold"
-                        style={{
-                          background: isActive ? p.color : '#F7F3EE',
-                          color: isActive ? '#fff' : '#6B5555',
-                          border: `1.5px solid ${isActive ? p.color : 'rgba(123,31,58,0.22)'}`,
-                        }}>
-                  {p.label}
-                </button>
-              )
-            })}
-          </div>
-          {(sale.deposit_amount || sale.agreed_price) && (
-            <div className="flex px-4 pb-3 gap-4"
-                 style={{ borderTop: '1px solid rgba(123,31,58,0.08)' }}>
-              {sale.deposit_amount ? (
-                <div className="flex-1">
-                  <p className="text-[10px] pt-2" style={{ color: '#A08888' }}>Reserva</p>
-                  <p className="text-[16px] font-bold" style={{ color: '#9C6A00' }}>
-                    {sale.deposit_amount.toLocaleString('es-ES')} €
-                  </p>
-                </div>
-              ) : null}
-              {sale.final_amount ? (
-                <div className="flex-1">
-                  <p className="text-[10px] pt-2" style={{ color: '#A08888' }}>Pago final</p>
-                  <p className="text-[16px] font-bold" style={{ color: '#1C1010' }}>
-                    {sale.final_amount.toLocaleString('es-ES')} €
-                  </p>
-                </div>
-              ) : null}
-              <div className="flex-1">
-                <p className="text-[10px] pt-2" style={{ color: '#A08888' }}>Total acordado</p>
-                <p className="text-[16px] font-bold" style={{ color: '#1C1010' }}>
-                  {sale.agreed_price.toLocaleString('es-ES')} €
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+        <PaymentsPanel kind="semen" saleId={sale.id} agreedPrice={sale.agreed_price} payments={sale.payments} />
 
         {/* SHIPPINGS */}
         <div>
@@ -504,7 +545,7 @@ function SaleDetailSheet({ open, onClose, sale, stallionId }: {
             Envíos
           </p>
           <div className="space-y-2">
-            {([1, 2, 3] as const).map(n => (
+            {([1, 2, 3, 4, 5] as const).map(n => (
               <ShippingCard key={n} n={n}
                             shipping={getShipping(sale.semen_shippings, n)}
                             unlocked={isLocallyUnlocked(n)}
@@ -514,6 +555,8 @@ function SaleDetailSheet({ open, onClose, sale, stallionId }: {
             ))}
           </div>
         </div>
+
+        <MareDataCard sale={sale} />
 
         {/* CLIENT DATA */}
         <div>
@@ -529,10 +572,7 @@ function SaleDetailSheet({ open, onClose, sale, stallionId }: {
               c.city        ? ['Ciudad', c.city, false]         : null,
               c.phone       ? ['Teléfono', c.phone, false]      : null,
               c.instagram   ? ['Instagram', `@${c.instagram}`, true] : null,
-              sale.mare_name ? ['Yegua receptora', sale.mare_name, false] : null,
               ['Precio acordado', `${sale.agreed_price.toLocaleString('es-ES')} €`, false],
-              sale.deposit_amount ? ['Reserva', `${sale.deposit_amount.toLocaleString('es-ES')} €`, false] : null,
-              sale.final_amount   ? ['Pago final', `${sale.final_amount.toLocaleString('es-ES')} €`, false] : null,
               ['Fecha venta', saleDate, false],
               sale.notes ? ['Notas', sale.notes, false] : null,
             ] as ([string, string, boolean] | null)[]).filter(Boolean).map((row, i) => {
@@ -570,13 +610,15 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [pendingOnly, setPendingOnly]   = useState(false)
   const [addOpen, setAddOpen]           = useState(false)
-  const [selected, setSelected]         = useState<SaleWithData | null>(null)
+  const [selectedId, setSelectedId]     = useState<string | null>(null)
 
   const { data: allSales = [], isLoading } = useSemenSales(animal.id)
 
   if (isLoading) return <LoadingScreen />
 
   const sales = allSales as SaleWithData[]
+  // derive from fresh query data so the detail sheet never holds a stale snapshot
+  const selected = selectedId ? sales.find(s => s.id === selectedId) ?? null : null
 
   // Available years in the data (always show current year as option)
   const years = [...new Set([currentYear, ...sales.map(s => s.year)])].sort((a, b) => b - a)
@@ -585,11 +627,7 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
   const filtered    = pendingOnly ? yearSales.filter(s => !hasPrenez(s.semen_shippings)) : yearSales
 
   // Financial stats for selected year
-  const cobrado = yearSales.reduce((acc, s) => {
-    if (s.payment_status === 'completo') return acc + s.agreed_price
-    if (s.payment_status === 'reserva')  return acc + (s.deposit_amount ?? 0)
-    return acc
-  }, 0)
+  const cobrado = yearSales.reduce((acc, s) => acc + summarizePayments(s.agreed_price, s.payments).paid, 0)
   const estimado    = yearSales.reduce((acc, s) => acc + s.agreed_price, 0)
   const totalEnvios = yearSales.reduce((acc, s) => acc + s.semen_shippings.length, 0)
   const exitoPct    = yearSales.length > 0
@@ -685,12 +723,13 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
         ) : (
           filtered.map((sale, i) => {
             const ships = sale.semen_shippings
-            const pl    = PAYMENT_LABEL[sale.payment_status]
-            const barW  = paymentBarWidth(sale.payment_status)
+            const ps    = summarizePayments(sale.agreed_price, sale.payments)
+            const pl    = PAYMENT_STATUS_COLOR[ps.status]
+            const barW  = `${ps.pct}%`
 
             return (
               <button key={sale.id}
-                      onClick={() => setSelected(sale)}
+                      onClick={() => setSelectedId(sale.id)}
                       className="w-full text-left px-4 py-3 active:bg-[#F5E8EC]"
                       style={{ borderBottom: i < filtered.length - 1 ? '1px solid rgba(123,31,58,0.11)' : 'none' }}>
                 {/* Top: avatar + name + price + date */}
@@ -727,19 +766,19 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
                     <div className="h-full rounded-full" style={{ width: barW, background: pl.color }} />
                   </div>
                   <span className="text-[10px] font-semibold shrink-0" style={{ color: pl.color }}>
-                    {pl.label}
+                    {PAYMENT_STATUS_LABEL[ps.status]}{ps.status === 'parcial' ? ` · ${ps.paid.toLocaleString('es-ES')} €` : ''}
                   </span>
                 </div>
 
                 {/* Shipping dots */}
                 <div className="flex items-center gap-0.5">
-                  {([1, 2, 3] as const).map((n, idx) => (
+                  {([1, 2, 3, 4, 5] as const).map((n, idx) => (
                     <Fragment key={n}>
                       <ShipDot n={n}
                                shipping={getShipping(ships, n)}
                                unlocked={isUnlocked(ships, n)} />
-                      {idx < 2 && (
-                        <div className="w-4 h-px mx-0.5 shrink-0"
+                      {idx < 4 && (
+                        <div className="w-2 h-px shrink-0"
                              style={{ background: 'rgba(123,31,58,0.15)' }} />
                       )}
                     </Fragment>
@@ -758,7 +797,7 @@ export default function TabCubriciones({ animal }: { animal: Animal }) {
                     stallionId={animal.id} onSaved={() => {}} />
 
       {selected && (
-        <SaleDetailSheet open={!!selected} onClose={() => setSelected(null)}
+        <SaleDetailSheet open={!!selected} onClose={() => setSelectedId(null)}
                          sale={selected} stallionId={animal.id} />
       )}
     </div>

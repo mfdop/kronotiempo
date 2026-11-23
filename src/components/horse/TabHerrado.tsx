@@ -4,15 +4,15 @@ import { useShoeingRecords, useCreateShoeingRecord, createAutoTask } from '../..
 import { useAuth } from '../../hooks/useAuth'
 import { BottomSheet, EmptyState, LoadingScreen, Field, GranateButton, GhostButton } from '../ui'
 import type { Animal, HerradoType } from '../../types'
-import { format, parseISO, differenceInDays } from 'date-fns'
+import { format, parseISO, differenceInDays, addDays } from 'date-fns'
+import { SHOEING_INTERVAL_DAYS } from '../../lib/constants'
 import { es } from 'date-fns/locale'
 
 // ─── CONSTANTS ────────────────────────────────────────────────
 const TYPE_CONFIG: Record<HerradoType, { label: string; color: string; bg: string }> = {
-  completo:   { label: 'Completo',   color: '#2E6B3E', bg: '#EAF3EC' },
-  reherrado:  { label: 'Reherrado',  color: '#9C6A00', bg: '#FDF3DC' },
-  correctivo: { label: 'Correctivo', color: '#1A4F7A', bg: '#E8F0F8' },
-  descalzo:   { label: 'Descalzo',   color: '#6B5555', bg: '#F7F3EE' },
+  completo: { label: 'Completo', color: '#2E6B3E', bg: '#EAF3EC' },
+  recorte:  { label: 'Recorte',  color: '#9C6A00', bg: '#FDF3DC' },
+  perdida:  { label: 'Pérdida',  color: '#8C1F1F', bg: '#FCEAEA' },
 }
 
 // ─── ADD SHOEING SHEET ────────────────────────────────────────
@@ -34,33 +34,44 @@ function AddShoeingSheet({ open, onClose, animalId, animalName, ownerId }: {
     next_estimated_date: '',
     notes:               '',
   })
+  const [nextTouched, setNextTouched] = useState(false)
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
+  const defaultNext = (d: string) => {
+    try { return format(addDays(parseISO(d), SHOEING_INTERVAL_DAYS), 'yyyy-MM-dd') } catch { return '' }
+  }
+  // Changing the date re-suggests next = date + 90 days unless the user set it manually
+  const setDate = (v: string) => setForm(p => ({
+    ...p, date: v,
+    next_estimated_date: nextTouched || !v ? p.next_estimated_date : defaultNext(v),
+  }))
 
   const handleSave = async () => {
     if (!form.date) { setError('La fecha es obligatoria'); return }
     setSaving(true); setError(null)
     try {
+      const nextDate = form.next_estimated_date || defaultNext(form.date)
       await create.mutateAsync({
         animal_id:           animalId,
         date:                form.date,
         type:                form.type,
         farrier_name:        form.farrier_name   || undefined,
         cost:                form.cost           ? +form.cost : undefined,
-        next_estimated_date: form.next_estimated_date || undefined,
+        next_estimated_date: nextDate || undefined,
         notes:               form.notes          || undefined,
       })
-      if (form.next_estimated_date && ownerId) {
+      if (nextDate && ownerId) {
         await createAutoTask({
           owner_id:   ownerId,
           title:      `Herrado · ${animalName}`,
           description: form.farrier_name ? `Herrador: ${form.farrier_name}` : undefined,
-          due_date:   form.next_estimated_date,
+          due_date:   nextDate,
           animal_id:  animalId,
           origin:     'auto_herrado',
         })
       }
       onClose()
       setForm({ date: '', type: 'completo', farrier_name: '', cost: '', next_estimated_date: '', notes: '' })
+      setNextTouched(false)
     } catch (e: unknown) {
       setError(errMsg(e))
     }
@@ -72,13 +83,13 @@ function AddShoeingSheet({ open, onClose, animalId, animalName, ownerId }: {
       <div className="space-y-3">
 
         <Field label="Fecha *">
-          <input type="date" value={form.date} onChange={e => set('date', e.target.value)}
+          <input type="date" value={form.date} onChange={e => setDate(e.target.value)}
                  className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                  style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
         </Field>
 
         <Field label="Tipo de herrado">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {(Object.entries(TYPE_CONFIG) as [HerradoType, typeof TYPE_CONFIG[HerradoType]][]).map(([v, cfg]) => (
               <button key={v} onClick={() => set('type', v)}
                       className="py-2.5 rounded-xl text-[13px] font-semibold"
@@ -107,9 +118,9 @@ function AddShoeingSheet({ open, onClose, animalId, animalName, ownerId }: {
                    className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                    style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
           </Field>
-          <Field label="Próximo herrado">
+          <Field label="Próximo herrado" hint="Por defecto, 3 meses">
             <input type="date" value={form.next_estimated_date}
-                   onChange={e => set('next_estimated_date', e.target.value)}
+                   onChange={e => { setNextTouched(true); set('next_estimated_date', e.target.value) }}
                    className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
                    style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
           </Field>
@@ -145,10 +156,13 @@ export default function TabHerrado({ animal }: { animal: Animal }) {
 
   if (isLoading) return <LoadingScreen />
 
-  const nextRecord  = records.find(r => r.next_estimated_date)
-  const daysToNext  = nextRecord?.next_estimated_date
-    ? differenceInDays(parseISO(nextRecord.next_estimated_date), new Date())
+  // Next shoeing is derived from the most recent record (next date, or date + 90 days)
+  const latest      = records[0]
+  const nextRecord  = latest
+  const nextDateStr = latest
+    ? (latest.next_estimated_date ?? format(addDays(parseISO(latest.date), SHOEING_INTERVAL_DAYS), 'yyyy-MM-dd'))
     : null
+  const daysToNext  = nextDateStr ? differenceInDays(parseISO(nextDateStr), new Date()) : null
   const isOverdue   = daysToNext !== null && daysToNext < 0
   const totalCost   = records.reduce((sum, r) => sum + (r.cost ?? 0), 0)
   const lastFarrier = records.find(r => r.farrier_name)?.farrier_name
@@ -168,7 +182,7 @@ export default function TabHerrado({ animal }: { animal: Animal }) {
             {isOverdue ? '⚠ Herrado vencido' : 'Próximo herrado estimado'}
           </p>
           <p className="text-[18px] font-bold mt-1" style={{ color: '#1C1010' }}>
-            {format(parseISO(nextRecord.next_estimated_date!), 'd MMM yyyy', { locale: es })}
+            {format(parseISO(nextDateStr!), 'd MMM yyyy', { locale: es })}
             <span className="text-[13px] font-normal ml-2" style={{ color: '#6B5555' }}>
               {daysToNext === 0
                 ? '· Hoy'

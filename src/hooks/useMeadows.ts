@@ -14,10 +14,15 @@ export type MeadowWithLogs = Meadow & {
 }
 
 export type WaterFoodStatus = {
-  status: 'ok' | 'warn' | 'due'
+  status: 'ok' | 'warn' | 'due' | 'neutral'
   daysSince: number | null
   average: number
+  /** Set while the food interval is still being learned (neutral colours). */
+  learning?: { count: number; needed: number }
 }
+
+export const FOOD_LEARN_MIN_LOGS = 5
+const FOOD_MAX_INTERVALS = 5
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -44,7 +49,39 @@ export function computeWaterFoodStatus(
   return { status: getWaterFoodStatus(daysSince, Math.max(average, 1)), daysSince, average }
 }
 
-export function statusTextColor(s: 'ok' | 'warn' | 'due') {
+/**
+ * Food status. Neutral (no colours) until FOOD_LEARN_MIN_LOGS logs exist; after
+ * that the expected refill interval is the average of the most recent intervals
+ * (up to the last FOOD_MAX_INTERVALS) between logs.
+ */
+export function computeFoodStatus(logs: { logged_at: string }[], defaultAvg = 30): WaterFoodStatus {
+  const sorted = [...(logs ?? [])].sort((a, b) => a.logged_at.localeCompare(b.logged_at))
+  const daysSince = sorted.length > 0
+    ? differenceInDays(new Date(), parseISO(sorted[sorted.length - 1].logged_at))
+    : null
+
+  if (sorted.length < FOOD_LEARN_MIN_LOGS) {
+    return {
+      status: 'neutral', daysSince, average: defaultAvg,
+      learning: { count: sorted.length, needed: FOOD_LEARN_MIN_LOGS },
+    }
+  }
+
+  const recent = sorted.slice(-(FOOD_MAX_INTERVALS + 1))
+  const spans: number[] = []
+  for (let i = 1; i < recent.length; i++) {
+    const diff = differenceInDays(parseISO(recent[i].logged_at), parseISO(recent[i - 1].logged_at))
+    if (diff > 0) spans.push(diff)
+  }
+  const average = spans.length > 0
+    ? Math.round((spans.reduce((a, b) => a + b, 0) / spans.length) * 10) / 10
+    : defaultAvg
+
+  return { status: getWaterFoodStatus(daysSince ?? 0, Math.max(average, 1)), daysSince, average }
+}
+
+export function statusTextColor(s: 'ok' | 'warn' | 'due' | 'neutral') {
+  if (s === 'neutral') return '#A08888'
   if (s === 'due')  return '#8C1F1F'
   if (s === 'warn') return '#9C6A00'
   return '#2E6B3E'

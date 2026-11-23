@@ -19,8 +19,10 @@ function fmtDate(iso: string) {
   catch { return iso.slice(5, 10) }
 }
 
-function isAutoWater(t: Task) {
-  return t.origin === 'auto_agua' || t.origin === 'auto_comida'
+// Legacy water/food auto-tasks (no longer generated) are hidden if still in the DB
+function isLegacyWaterFood(t: Task) {
+  const o = t.origin as string
+  return o === 'auto_agua' || o === 'auto_comida'
 }
 
 function classifyTasks(tasks: Task[]) {
@@ -29,28 +31,20 @@ function classifyTasks(tasks: Task[]) {
   const week:      Task[] = []
   const soon:      Task[] = []
   const doneToday: Task[] = []
-  // Deduplicate auto_agua/comida: keep only one task per (origin+title) across all buckets
-  const seenAutoKeys = new Set<string>()
 
   for (const t of tasks) {
+    if (isLegacyWaterFood(t)) continue
     if (t.status === 'completada') {
       if (t.completed_at && t.completed_at.startsWith(TODAY)) doneToday.push(t)
       continue
-    }
-
-    // Skip duplicate water/food auto-tasks
-    if (isAutoWater(t)) {
-      const key = `${t.origin}:${t.title}`
-      if (seenAutoKeys.has(key)) continue
-      seenAutoKeys.add(key)
     }
 
     const d = t.due_date
     if (!d || d < TODAY) { pending.push(t); continue }
     if (d === TODAY)      { today.push(t);   continue }
     if (d <= WEEK)        { week.push(t);    continue }
-    if (d <= SOON && !isAutoWater(t)) { soon.push(t); continue }
-    // beyond 14 days or auto_agua/comida past week range → not shown
+    if (d <= SOON) { soon.push(t); continue }
+    // beyond 14 days → not shown
   }
 
   return { pending, today, week, soon, doneToday }
@@ -62,7 +56,7 @@ function exportWeekICS(tasks: Task[]) {
   const cal = ical({ name: 'Kronotiempo — Agenda' })
 
   for (const t of tasks) {
-    if (!t.due_date || isAutoWater(t)) continue
+    if (!t.due_date || isLegacyWaterFood(t)) continue
     const d = parseISO(t.due_date)
     const start = new Date(d)
     start.setHours(9, 0, 0, 0)
@@ -100,8 +94,6 @@ const ORIGIN_LABEL: Record<string, string> = {
   auto_parto:   'Parto',
   auto_herrado: 'Herrado',
   auto_vacuna:  'Vacuna',
-  auto_agua:    'Agua',
-  auto_comida:  'Comida',
 }
 
 // ─── TASK ITEM ────────────────────────────────────────────────────────────────

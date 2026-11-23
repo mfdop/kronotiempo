@@ -26,7 +26,7 @@ export function ClientPicker({ open, onClose, onSelect, title = 'Seleccionar cli
   const [saving, setSaving]   = useState(false)
 
   const [form, setForm] = useState({
-    name: '', phone: '', instagram: '', city: '', stable_name: '',
+    name: '', phone: '', instagram: '', dni: '', city: '', stable_name: '',
   })
   const setF = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
 
@@ -51,13 +51,14 @@ export function ClientPicker({ open, onClose, onSelect, title = 'Seleccionar cli
         name: form.name.trim(),
         phone: form.phone.trim() || undefined,
         instagram: form.instagram.trim().replace('@', '') || undefined,
+        dni: form.dni.trim() || undefined,
         city: form.city.trim() || undefined,
         stable_name: form.stable_name.trim() || undefined,
         owner_id: user!.id,
       })
       onSelect(data as ClientBasic)
       onClose()
-      setForm({ name: '', phone: '', instagram: '', city: '', stable_name: '' })
+      setForm({ name: '', phone: '', instagram: '', dni: '', city: '', stable_name: '' })
     } catch (e: unknown) {
       if (e instanceof Error && e.message === 'duplicate') {
         setError('Teléfono o Instagram ya registrado para otro cliente')
@@ -147,6 +148,12 @@ export function ClientPicker({ open, onClose, onSelect, title = 'Seleccionar cli
                      className="flex-1 px-2 py-2.5 text-[14px] outline-none"
                      style={{ background: '#F7F3EE', color: '#1C1010' }} />
             </div>
+          </Field>
+          <Field label="DNI">
+            <input value={form.dni} onChange={e => setF('dni', e.target.value)}
+                   placeholder="12345678A"
+                   className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none"
+                   style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010' }} />
           </Field>
           <div className="flex gap-2">
             <Field label="Ciudad">

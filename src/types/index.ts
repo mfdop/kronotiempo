@@ -10,15 +10,15 @@ export type AnimalStatus   = 'activo' | 'vendido' | 'fallecido' | 'cedido' | 'cu
 export type MontaType      = 'natural' | 'ia'
 export type PregnancyResult= 'gestante' | 'cria_viva' | 'aborto' | 'gemelar' | 'mortinato' | 'no_prenada'
 export type ShippingResult = 'prenez' | 'espera' | 'sin_prenez'
-export type PaymentStatus  = 'sin_reserva' | 'reserva' | 'completo'
+export type PaymentStatus  = 'sin_pagos' | 'parcial' | 'completo'   // derived from sum(payments) vs agreed_price
 export type EpisodeStatus  = 'activo' | 'resuelto' | 'cronico'
 export type DocType        = 'veterinario' | 'genetica' | 'certificado' | 'otro'
-export type HerradoType    = 'completo' | 'reherrado' | 'correctivo' | 'descalzo'
-export type VacunaType     = 'gripe' | 'tetanos' | 'desparasitacion' | 'rinoneumonitis' | 'otro'
+export type HerradoType    = 'completo' | 'recorte' | 'perdida'
+export type VacunaType     = 'gripe' | 'tetanos' | 'desparasitacion' | 'rinoneumonitis' | 'nilo' | 'otro'
 export type ParcelaStatus  = 'ocupada' | 'libre' | 'descanso' | 'tratamiento'
 export type TaskStatus     = 'pendiente' | 'completada'
-export type TaskOrigin     = 'manual' | 'auto_parto' | 'auto_herrado' | 'auto_vacuna' | 'auto_agua' | 'auto_comida'
-export type ClientTagType  = 'cubricion' | 'vientre' | 'interesado' | 'vendedor'
+export type TaskOrigin     = 'manual' | 'auto_parto' | 'auto_herrado' | 'auto_vacuna'
+export type ClientTagType  = 'cubricion' | 'vientre' | 'vendedor'
 export type CoatBase       = 'negro' | 'castano' | 'alazan'
 export type CoatPattern    = 'lisa' | 'pio' | 'appaloosa' | 'leopardo'
 
@@ -72,6 +72,7 @@ export interface Animal {
   // custody
   custody_owner_name?: string
   custody_owner_phone?: string
+  custody_owner_dni?: string
   // notes
   description?: string
   private_notes?: string
@@ -95,6 +96,7 @@ export interface Meadow {
   status: ParcelaStatus
   icon_emoji?: string
   color_rgba?: string          // e.g. "rgba(46,107,62,0.18)"
+  has_water?: boolean          // false = no water point (hide water UI); default true
   notes?: string
   created_at: string
 }
@@ -130,6 +132,7 @@ export interface AnimalGenetics {
   cream?: string       // N/N | N/Cr | Cr/Cr
   pearl?: string       // N/N | N/Prl | Prl/Prl
   appaloosa?: string   // N/N | N/LP | LP/LP
+  patn1?: string       // N/N | N/PATN1 | PATN1/PATN1 (pattern-1 modifier, with LP -> leopard)
   // extended loci (collapsed by default)
   dun?: string
   silver?: string
@@ -163,24 +166,26 @@ export interface Pregnancy {
   created_at: string
 }
 
-export interface PregnancyInterested {
-  id: string
-  pregnancy_id: string
-  client_id: string
-  notes?: string
-  created_at: string
-}
-
 export interface PregnancySale {
   id: string
   pregnancy_id: string
   client_id: string
   agreed_price: number
-  deposit_amount?: number
-  final_amount?: number
-  payment_status: PaymentStatus
+  payments?: Payment[]        // embedded when queried with payments(*)
   delivery_date?: string
   notes?: string
+  created_at: string
+}
+
+export interface Payment {
+  id: string
+  owner_id: string
+  pregnancy_sale_id?: string | null
+  semen_sale_id?: string | null
+  amount: number
+  paid_date: string
+  method?: string | null
+  notes?: string | null
   created_at: string
 }
 
@@ -190,10 +195,11 @@ export interface SemenSale {
   stallion_id: string
   client_id: string
   mare_name?: string
+  mare_birth_date?: string
+  mare_chip?: string
+  mare_ueln?: string
   agreed_price: number
-  deposit_amount?: number
-  final_amount?: number
-  payment_status: PaymentStatus
+  payments?: Payment[]        // embedded when queried with payments(*)
   year: number
   notes?: string
   created_at: string
@@ -202,7 +208,7 @@ export interface SemenSale {
 export interface SemenShipping {
   id: string
   semen_sale_id: string
-  attempt_number: 1 | 2 | 3
+  attempt_number: 1 | 2 | 3 | 4 | 5
   estimated_date?: string
   actual_date?: string
   result: ShippingResult
@@ -298,15 +304,6 @@ export interface MaintenanceEntry {
   created_at: string
 }
 
-// ─── PURCHASE INTERESTS (vientre buyers) ─────────────────────────────────────
-export interface PurchaseInterest {
-  id: string
-  pregnancy_id: string
-  client_id: string
-  notes?: string
-  created_at: string
-}
-
 // ─── CLIENTS ─────────────────────────────────────────────────────────────────
 export interface Client {
   id: string
@@ -314,6 +311,7 @@ export interface Client {
   name: string
   phone?: string               // unique identifier
   instagram?: string           // unique identifier (without @)
+  dni?: string
   city?: string
   stable_name?: string
   notes?: string
