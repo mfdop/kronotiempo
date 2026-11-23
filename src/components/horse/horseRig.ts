@@ -365,7 +365,7 @@ export const POSES = {
     ff: [10, 20, -4, 12, 0],
     hn: [64, -100, 96, 96, 80],
     hf: [58, -96, 92, 94, 80],
-    gl: 0, legsFront: 1,
+    gl: 0,
   },
   front: { ...STAND, front: 1 },
 } satisfies Record<string, Pose>

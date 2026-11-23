@@ -356,7 +356,7 @@ function Emote({ e, t, rig }: { e: EmoteDef; t: number; rig: Rig }) {
   const k = (t - e.from) / (e.to - e.from)
   if (k <= 0 || k >= 1) return null
   const op = Math.min(1, k * 6, (1 - k) * 6)
-  const pop = 0.7 + 0.3 * Math.min(1, k * 5)
+  const pop = (0.7 + 0.3 * Math.min(1, k * 5)) * 1.7
   const wob = Math.sin(k * Math.PI * 10) * 1.5
   const head = add(rig.head.at, [0, rig.dy])
   let at: V
