@@ -1,314 +1,465 @@
-import { useId, type CSSProperties, type ReactNode } from 'react'
-import { HORSE_CSS } from './horseAnimations'
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { HORSE_ANIMATIONS, HORSE_CSS, type EmoteDef } from './horseAnimations'
 import type { HorseCoat } from './horseCoat'
+import {
+  GROUND, POSES, TORSO, TORSO_LINE, TORSO_SHADE, TORSO_LINES, MANTA, add, rot, sub,
+  buildTube, lerpPose, solve, solveNamed, tubePt, tubeRegion, tubeSide,
+  type LegRig, type Pose, type PoseName, type Rig, type Tube, type V,
+} from './horseRig'
+import {
+  palette, mantaSpot, mix, scatter, Spot, tubeScatter, TubeSpots, Sock, blob, tubeBlob, type Pal,
+} from './horseCoatArt'
 
 /* ════════════════════════════════════════════════════════════════════════════
- * HORSE FIGURE — layered, articulated 2.5D horse (SVG)
+ * HORSE FIGURE — storybook-style horse (ink outline + cel shading), SVG.
  *
- * Coordinate space: viewBox 0 0 240 200, horse faces LEFT, ground at y = 187.
- * Rig hierarchy (every group is animatable from CSS, see horseAnimations.ts):
- *
- *   .hz-shadow                       ground shadow (outside the rig)
- *   .hz-rig                          whole horse (bounce / rear / buck)
- *     .hz-body                       pitch
- *       .hz-leg.hz-ff / .hz-fh       far legs  (darker, drawn first)
- *         .hz-up > .hz-lo            upper segment > lower segment (+hoof)
- *       .hz-tail
- *       .hz-barrel                   torso (breathing)
- *       .hz-leg.hz-nf / .hz-nh       near legs
- *       .hz-neck
- *         .hz-mane
- *         .hz-head > .hz-ear, .hz-eye, .hz-jaw
- *
- * Coat markings live inside each part and are clipped by that part's own
- * outline, so spots / socks / careto follow the moving pieces.
+ * Side view is a parametric rig (horseRig.ts) so every pose can tween into
+ * any other; the front view ("De frente") is its own drawing, crossfaded in
+ * via `pose.front`. Coat markings are clipped to each body part.
  * ══════════════════════════════════════════════════════════════════════════ */
 
-// ─── colour helpers ──────────────────────────────────────────────────────────
-function rgb(hex: string): [number, number, number] {
-  let h = hex.replace('#', '')
-  if (h.length === 3) h = h.split('').map(c => c + c).join('')
-  const n = parseInt(h.slice(0, 6), 16)
-  if (Number.isNaN(n)) return [90, 60, 40]
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-}
-function mix(a: string, b: string, t: number) {
-  const A = rgb(a), B = rgb(b)
-  const c = A.map((v, i) => Math.round(v + (B[i] - v) * t))
-  return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')
-}
-function luma(hex: string) {
-  const [r, g, b] = rgb(hex)
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255
-}
-
-// ─── geometry helpers ────────────────────────────────────────────────────────
-/** Shift an absolute M/L/C/Z path by dx,dy. */
-function shift(d: string, dx: number, dy: number) {
-  let i = 0
-  return d.replace(/-?\d*\.?\d+/g, m => {
-    const v = parseFloat(m) + (i++ % 2 === 0 ? dx : dy)
-    return String(Math.round(v * 10) / 10)
-  })
-}
-
-function rng(seed: number) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-type Spot = [cx: number, cy: number, rx: number, ry: number, rot: number]
-function scatter(seed: number, box: [number, number, number, number], n: number, rMin: number, rMax: number): Spot[] {
-  const r = rng(seed)
-  const out: Spot[] = []
-  let guard = 0
-  while (out.length < n && guard++ < n * 40) {
-    const rx = rMin + r() * (rMax - rMin)
-    const cx = box[0] + r() * (box[2] - box[0])
-    const cy = box[1] + r() * (box[3] - box[1])
-    if (out.some(s => Math.hypot(s[0] - cx, s[1] - cy) < (s[2] + rx) * 1.25)) continue
-    out.push([cx, cy, rx, rx * (0.75 + r() * 0.3), Math.round(r() * 180)])
-  }
-  return out
-}
-
-/** Organic closed blob (for pío patches). */
-function blob(seed: number, cx: number, cy: number, rx: number, ry: number, k = 8) {
-  const r = rng(seed)
-  const pts: [number, number][] = []
-  for (let i = 0; i < k; i++) {
-    const a = (i / k) * Math.PI * 2
-    const f = 0.72 + r() * 0.5
-    pts.push([cx + Math.cos(a) * rx * f, cy + Math.sin(a) * ry * f])
-  }
-  let d = `M ${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`
-  for (let i = 0; i < k; i++) {
-    const p0 = pts[(i - 1 + k) % k], p1 = pts[i], p2 = pts[(i + 1) % k], p3 = pts[(i + 2) % k]
-    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6]
-    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6]
-    d += ` C ${c1[0].toFixed(1)} ${c1[1].toFixed(1)} ${c2[0].toFixed(1)} ${c2[1].toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`
-  }
-  return d + ' Z'
-}
-
-// ─── PART GEOMETRY ───────────────────────────────────────────────────────────
-const BARREL =
-  'M 64 100 C 66 86 80 78 94 80 C 108 82 120 89 136 87 C 150 85 162 77 175 82 ' +
-  'C 186 87 189 104 182 117 C 178 125 168 130 156 128 C 140 132 116 134 100 130 ' +
-  'C 84 128 70 124 65 114 C 63 110 63 104 64 100 Z'
-
-const NECK =
-  'M 65 116 C 55 100 46 82 44 64 C 43 50 52 37 66 37 C 84 39 98 60 108 86 ' +
-  'C 106 96 100 106 94 116 Z'
-const NECK_LINE =
-  'M 64.6 114 C 55 100 46 82 44 64 C 43 50 52 37 66 37 C 84 39 98 60 107 84'
-
-const MANE =
-  'M 55 33 C 63 25 76 26 85 34 C 94 43 102 57 108 71 C 110 76 112 81 112 87 ' +
-  'C 108 85 105 83 103 82 C 103 86 101 89 98 90 C 97 84 95 80 92 77 ' +
-  'C 92 81 90 84 87 85 C 86 78 84 72 81 67 C 81 71 79 74 76 75 ' +
-  'C 75 67 73 60 69 54 C 68 58 66 60 63 60 C 63 52 61 45 57 40 C 56 38 55 36 55 33 Z'
-const MANE_STRANDS =
-  'M 64 33 C 74 36 81 44 86 54 M 77 38 C 86 46 92 56 96 68 M 90 50 C 97 60 102 70 106 80 M 62 40 C 66 46 69 52 70 58'
-
+// ─── static head art (stand-world coords, pivot HEAD_C) ─────────────────────
 const HEAD =
-  'M 64 32 C 56 30 47 34 43 42 L 29 62 C 24 69 25 78 33 80 C 38 81 43 79 46 76 ' +
-  'C 52 72 61 67 67 60 C 73 52 72 37 64 32 Z'
+  'M 158 52 C 160 43 167 37 176 37 C 182 37 187 40 191 44 C 197 51 203 63 208 75 ' +
+  'C 210 80 213 84 213 89 C 213 95 210 98.5 205.5 99.5 C 201.5 100.5 197.5 100 194.5 98 ' +
+  'C 189 95 184 92.5 178 90.5 C 171 88 166 82 163 75 C 160 68 157 60 158 52 Z'
+const HEAD_LINE =
+  'M 166 39.5 C 169 37.8 172 37 176 37 C 182 37 187 40 191 44 C 197 51 203 63 208 75 ' +
+  'C 210 80 213 84 213 89 C 213 95 210 98.5 205.5 99.5 C 201.5 100.5 197.5 100 194.5 98 ' +
+  'C 189 95 184 92.5 178 90.5 C 171 88 166 82 163 75'
+const CHEEK = 'M 164.5 62 C 164 72 168 81 177 87.5'
+const MUZZLE = 'M 186 42 C 196 49 206 62 216 86 L 217 106 L 188 106 C 184 98 179 90 183 80 C 186 70 188 58 186 42 Z'
 const CARETO =
-  'M 55 31 C 50 32 45 36 42 41 L 27 62 C 23 68 23 77 30 81 L 40 81 ' +
-  'C 36 76 35 70 38 65 L 47 51 C 50 46 54 41 59 36 Z'
-const MUZZLE = 'M 22 72 C 26 64 36 64 42 70 C 44 76 42 82 34 83 C 26 83 21 79 22 72 Z'
-const EAR = 'M 58 35 C 55 27 57 19 61 12 C 66 18 69 27 66 35 Z'
-const EAR_IN = 'M 60 32 C 59.5 26 60.5 21 61.5 17 C 63.5 21 65 27 64 32 Z'
+  'M 181.5 43.5 C 185 41 190 43 192.5 47 C 196.5 55 202 66 206.5 77 C 208.5 82 211.5 85.5 215 89 L 215 99 ' +
+  'C 209.5 97 205.5 92.5 203.5 87 C 199 76.5 193 66 186.5 57 C 183.5 53 181 48.5 181.5 43.5 Z'
+const EAR_N = 'M 162 47 C 160.8 40 163.8 32 168.5 25.5 C 172.6 32 175.2 39 173.5 45 Z'
+const EAR_N_IN = 'M 164.8 43.5 C 164.4 38 166.1 33 168.6 29.4 C 170.8 33.6 172.1 38 171.2 42.5 Z'
+const EAR_F = 'M 179 41 C 179.6 34 182.6 29 186.8 24.6 C 189.3 30.4 190.3 36 188.5 42 Z'
+const EAR_F_IN = 'M 181.5 39 C 182.1 34.4 184.1 30.6 186.6 28.4 C 187.9 32 188.5 36 187.4 39.5 Z'
 const FORELOCK =
-  'M 66 33 C 58 31 51 35 47 43 C 51 41 53 41 55 43 C 55 39 58 37 61 37 C 60 40 61 42 63 43 C 64 39 66 36 66 33 Z'
-const JAW = 'M 46 75 C 43 79 38 82 32 82 C 30 82 29 80 31 79 C 36 78 40 77 44 74 Z'
-const MOUTH = 'M 47 74 L 30 77 L 31 81 L 45 78 Z'
+  'M 168 42 C 172 36 180 35 186 39 C 189 41.5 191 45 191.5 49.5 C 189.5 46.8 187.5 45.2 185.5 44.8 ' +
+  'C 186.5 47.8 186.3 50.8 185 53.4 C 183.5 49.2 181.5 46.6 178.5 45.4 C 178.6 47.4 177.8 49.2 176.5 50.4 ' +
+  'C 175.6 46.6 172.5 43.6 168 42 Z'
+const EYE_C: V = [179.6, 60.6]
+const EYE = 'M 175.4 60.8 C 176.3 57.6 180.3 56.4 183.3 58.8 C 184.3 60.8 183.1 63.9 180 64.3 C 177.5 64.5 175.7 62.8 175.4 60.8 Z'
+const EYELID = 'M 174.3 59.8 C 175.9 56 181.1 55 184.5 57.8'
+const LASH = 'M 175.3 57.9 L 173.7 56.7 M 176.9 56.6 L 176 55'
+const NOSTRIL = 'M 206 85.5 C 202.6 86 201.4 90.2 203.6 92.6'
+const MOUTH = 'M 195.5 97.6 C 199.3 98.8 203.1 98.4 206.3 96.6'
+const JAW_PIVOT: V = [184, 91]
+const JAW = 'M 181 90 C 187 93 193 96.5 198 98 C 201.5 99 204.5 99 207 98.5 C 208.5 101.5 205 105 199.5 104.5 C 192.5 104 186.5 100 180 95 Z'
 
-const TAIL =
-  'M 170 82 C 186 79 195 92 195 110 C 195 127 197 142 203 157 C 196 160 188 151 184 139 ' +
-  'C 180 125 182 106 168 92 Z'
-const TAIL_STRANDS =
-  'M 182 88 C 189 100 188 118 189 132 M 188 96 C 193 110 191 128 196 146 M 177 92 C 183 104 182 120 185 134'
+const HEAD_SPOTS = scatter(37, [160, 40, 200, 92], 9, 1.8, 3.6,
+  (x, y) => Math.hypot(x - 178.5, y - 58.5) > 8 && x < 160 + (y - 40) * 0.55 + 22 && !(x > 186 && y > 70))
 
-// Legs (near side). Upper top is hidden inside the barrel.
-interface LegGeo {
-  upper: string; upperLine: string
-  lower: string; hoof: string
-  up: [number, number]; lo: [number, number]
-  sockY: number
-}
-const FRONT_LEG: LegGeo = {
-  upper: 'M 70 104 C 69 122 71 138 73 151 C 75 156 83 156 85 151 C 87 138 89 122 90 104 Z',
-  upperLine: 'M 69.6 118 C 70 130 71 140 73 151 C 75 156 83 156 85 151 C 86.5 140 88 128 89 118',
-  lower: 'M 73 147 L 85 147 C 85 157 84 165 84 171 C 84 176 82 179 80 181 L 70 181 ' +
-         'C 72 177 73 174 73 170 C 73 162 73 155 73 147 Z',
-  hoof: 'M 69 180 L 81 180 C 82 183 83 185 83.5 187 L 65.5 187 C 66 185 67 182 69 180 Z',
-  up: [79, 112], lo: [79, 151], sockY: 158,
-}
-const HIND_LEG: LegGeo = {
-  upper: 'M 150 104 C 150 124 158 140 162 152 C 164 158 175 158 177 152 C 179 140 183 122 181 104 Z',
-  upperLine: 'M 152.5 126 C 155 136 159 144 162 152 C 164 158 175 158 177 152 C 178 144 179.5 134 181.5 122',
-  lower: 'M 163 149 L 176 149 C 175 157 173 164 172 171 C 172 176 170 179 168 181 L 158 181 ' +
-         'C 160 177 162 174 162 170 C 162.5 162 163 156 163 149 Z',
-  hoof: 'M 157 180 L 169 180 C 170 183 171 185 171.5 187 L 153.5 187 C 154 185 155 182 157 180 Z',
-  up: [166, 114], lo: [170, 152], sockY: 160,
+// ─── torso coat layouts (torso-local) ───────────────────────────────────────
+const TORSO_SPOTS = scatter(11, [30, 102, 182, 186], 44, 3.6, 8.4)
+const MANTA_SPOTS = scatter(61, [30, 108, 100, 176], 16, 2.6, 5,
+  (x, y) => x < 104 - (y - 104) * 0.35)
+const PIO_TORSO = [blob(5, 104, 160, 36, 20), blob(9, 52, 136, 13, 15), blob(3, 160, 128, 12, 15)]
+
+// tube spot layouts
+const NECK_SPOTS = tubeScatter(23, 14, 0.02, 0.98, 0.2, 0.32)
+const LEG_SPOTS = {
+  fn: tubeScatter(41, 8, 0.12, 0.9, 0.5, 0.72), ff: tubeScatter(43, 7, 0.12, 0.9, 0.5, 0.72),
+  hn: tubeScatter(53, 9, 0.18, 0.9, 0.42, 0.66), hf: tubeScatter(59, 8, 0.18, 0.9, 0.42, 0.66),
 }
 
-// Coat markings (local coordinates of each part)
-const MANTA_BARREL =
-  'M 120 70 C 140 66 170 64 196 80 L 196 140 L 152 140 C 150 128 146 120 140 116 ' +
-  'C 142 110 136 106 132 104 C 134 98 128 94 124 92 C 126 86 120 82 122 78 Z'
-const MANTA_THIGH = 'M 140 90 L 196 90 L 196 132 C 186 136 176 134 168 130 C 160 128 152 126 146 122 Z'
+// ─── backdrop ───────────────────────────────────────────────────────────────
+const BACKDROP =
+  'M 18 124 C 34 82 104 60 156 76 C 200 90 204 150 194 192 C 184 236 124 254 70 242 C 22 230 2 168 18 124 Z'
 
-const LEO = {
-  barrel: scatter(11, [62, 78, 188, 134], 26, 2.6, 5.2),
-  neck:   scatter(23, [46, 40, 104, 116], 10, 2.2, 4.2),
-  head:   scatter(37, [26, 32, 72, 82], 9, 1.4, 2.6).filter(s => Math.hypot(s[0] - 55, s[1] - 45) > 9).slice(0, 6),
-  front:  scatter(41, [68, 110, 92, 160], 5, 1.8, 3),
-  hind:   scatter(53, [148, 110, 184, 160], 6, 2, 3.4),
-}
-const MANTA_SPOTS = {
-  barrel: scatter(61, [128, 76, 190, 132], 14, 2.2, 4.4),
-  thigh:  scatter(67, [146, 106, 184, 132], 5, 2, 3.2),
-}
-const PIO = {
-  barrel: [blob(5, 112, 112, 26, 19), blob(9, 160, 96, 15, 13)],
-  neck:   [blob(13, 72, 84, 13, 18)],
-  hind:   [blob(17, 166, 128, 12, 11)],
-  front:  [blob(19, 80, 122, 9, 10)],
-}
+interface Ctx { coat: HorseCoat; p: Pal; uid: string; icon: boolean }
 
-function Spots({ list, fill }: { list: Spot[]; fill: string }) {
-  return (
-    <>
-      {list.map(([cx, cy, rx, ry, rot], i) => (
-        <ellipse key={i} cx={cx} cy={cy} rx={rx} ry={ry}
-                 transform={`rotate(${rot} ${cx.toFixed(1)} ${cy.toFixed(1)})`} fill={fill} />
-      ))}
-    </>
-  )
-}
-
-// ─── Palette derived from the coat ───────────────────────────────────────────
-interface Pal {
-  ink: string; line: string; mane: string; maneHi: string
-  spot: string; blanket: string; mantaSpot: string; white: string
-  hoof: string; hoofLine: string; eye: string
-}
-function palette(c: HorseCoat): Pal {
-  const L = luma(c.ink)
-  const mane = L > 0.62 ? mix(c.ink, '#3a2c22', 0.35) : mix(c.ink, '#0d0806', 0.62)
-  const spotLight = luma(c.spotInk) > 0.75
-  return {
-    ink: c.ink,
-    line: mix(c.ink, '#140a06', L > 0.6 ? 0.45 : 0.55),
-    mane,
-    maneHi: mix(mane, '#ffffff', 0.18),
-    spot: c.spotInk,
-    blanket: '#F7F2EA',
-    mantaSpot: spotLight ? (L > 0.6 ? '#2A1E18' : c.ink) : c.spotInk,
-    white: '#FFFDF8',
-    hoof: c.cuatroalbo ? '#A8977E' : '#2F2420',
-    hoofLine: c.cuatroalbo ? '#6E604E' : '#120c0a',
-    eye: '#1B1210',
-  }
-}
-
-// ─── A skinned part: fill, clipped markings + shading, outline ──────────────
-function Skin({
-  id, d, line, p, uid, children, overlay, far = false, strokeW = 1.3,
-}: {
-  id: string; d: string; line?: string; p: Pal; uid: string
-  children?: ReactNode; overlay?: ReactNode; far?: boolean; strokeW?: number
+/** Fill + clipped content + outline for a closed shape. */
+function Skin({ id, d, ctx, line, children, fill, strokeW }: {
+  id: string; d: string; ctx: Ctx; line?: string | null; children?: ReactNode; fill?: string; strokeW?: number
 }) {
-  const clip = `${uid}-${id}`
+  const clip = `${ctx.uid}-${id}`
+  const sw = (strokeW ?? 1.5) * (ctx.icon ? 2.3 : 1)
   return (
     <>
       <clipPath id={clip}><path d={d} /></clipPath>
-      <path d={d} fill={p.ink} />
-      <g clipPath={`url(#${clip})`}>
-        {children}
-        <path d={d} fill={`url(#${uid}-shade)`} />
-        {overlay}
-        {far && <path d={d} fill="#1a0e08" opacity={0.26} />}
-      </g>
-      <path d={line ?? d} fill="none" stroke={p.line} strokeWidth={strokeW}
-            strokeLinejoin="round" strokeLinecap="round" />
+      <path d={d} fill={fill ?? ctx.p.coat} />
+      {children && <g clipPath={`url(#${clip})`}>{children}</g>}
+      {line !== null && (
+        <path d={line ?? d} fill="none" stroke={ctx.p.line} strokeWidth={sw} strokeLinejoin="round" strokeLinecap="round" />
+      )}
     </>
   )
 }
 
-function Leg({
-  geo, kind, cls, far, dx, dy, p, coat, uid,
-}: {
-  geo: LegGeo; kind: 'front' | 'hind'; cls: string; far: boolean
-  dx: number; dy: number; p: Pal; coat: HorseCoat; uid: string
-}) {
-  const S = (d: string) => (dx || dy ? shift(d, dx, dy) : d)
-  const up = { transformOrigin: `${geo.up[0] + dx}px ${geo.up[1] + dy}px` }
-  const lo = { transformOrigin: `${geo.lo[0] + dx}px ${geo.lo[1] + dy}px` }
-  const t = `translate(${dx} ${dy})`
+// ─── legs ───────────────────────────────────────────────────────────────────
+function Leg({ leg, id, ctx, far, hind }: { leg: LegRig; id: 'fn' | 'ff' | 'hn' | 'hf'; ctx: Ctx; far: boolean; hind: boolean }) {
+  const { p, coat } = ctx
+  const t = leg.tube
+  const d = tubeRegion(t)
   const pat = coat.pattern
-  const upperMarks = (
-    <g transform={t}>
-      {pat === 'leopardo' && <Spots list={LEO[kind]} fill={p.spot} />}
-      {pat === 'pio' && PIO[kind].map((b, i) => <path key={i} d={b} fill={p.spot} />)}
-      {pat === 'appaloosa' && kind === 'hind' && (
-        <>
-          <path d={MANTA_THIGH} fill={p.blanket} />
-          <Spots list={MANTA_SPOTS.thigh} fill={p.mantaSpot} />
-        </>
-      )}
-    </g>
-  )
-  const lowerMarks = (
-    <g transform={t}>
-      {pat === 'leopardo' && !coat.cuatroalbo && (
-        <Spots list={kind === 'front' ? [[78, 160, 1.8, 1.5, 0]] : [[168, 160, 1.8, 1.5, 0]]} fill={p.spot} />
-      )}
-    </g>
-  )
-  // White socks go above the shading so they stay bright and readable.
-  const sock = coat.cuatroalbo ? (
-    <g transform={t}>
-      <path d={`M 60 ${geo.sockY + 1} C 70 ${geo.sockY - 3} 80 ${geo.sockY + 3} 200 ${geo.sockY - 1} L 200 200 L 60 200 Z`}
-            fill={p.white} />
-      <path d={`M 60 ${geo.sockY + 1} C 70 ${geo.sockY - 3} 80 ${geo.sockY + 3} 200 ${geo.sockY - 1}`}
-            fill="none" stroke="#000" strokeOpacity={0.12} strokeWidth={1} />
-    </g>
-  ) : null
+  const kneeU = hind ? 0.6 : 0.53
+  const sw = 1.5 * (ctx.icon ? 2.3 : 1)
+  const g0 = tubePt(t, kneeU + 0.04, 0).p, g1 = tubePt(t, 0.9, 0).p
   return (
-    <g className={`hz-leg ${cls}`}>
-      <g className="hz-up" style={up}>
-        <g className="hz-lo" style={lo}>
-          <Skin id={`${cls}-lo`} d={S(geo.lower)} p={p} uid={uid} far={far} overlay={sock}>{lowerMarks}</Skin>
-          <path d={S(geo.hoof)} fill={p.hoof} stroke={p.hoofLine} strokeWidth={1.1} strokeLinejoin="round" />
-          {far && <path d={S(geo.hoof)} fill="#000" opacity={0.18} />}
-        </g>
-        <Skin id={`${cls}-up`} d={S(geo.upper)} line={S(geo.upperLine)} p={p} uid={uid} far={far}>
-          {upperMarks}
-        </Skin>
-      </g>
+    <g>
+      <linearGradient id={`${ctx.uid}-${id}-pt`} gradientUnits="userSpaceOnUse" x1={g0[0].toFixed(1)} y1={g0[1].toFixed(1)} x2={g1[0].toFixed(1)} y2={g1[1].toFixed(1)}>
+        <stop offset="0" stopColor={p.points} stopOpacity="0" />
+        <stop offset="0.55" stopColor={p.points} stopOpacity={ctx.icon ? 0.5 : 0.42} />
+        <stop offset="1" stopColor={p.points} stopOpacity={ctx.icon ? 0.8 : 0.7} />
+      </linearGradient>
+      <Skin id={id} d={d} ctx={ctx} line={null}>
+        {pat === 'leopardo' && !ctx.icon && <TubeSpots tube={t} list={LEG_SPOTS[id]} fill={p.spot} />}
+        {pat === 'leopardo' && ctx.icon && <TubeSpots tube={t} list={LEG_SPOTS[id].slice(0, 3)} fill={p.spot} scale={1.3} />}
+        {pat === 'pio' && hind && <path d={tubeBlob(t, 0.2, 0.1, 1.05, 17)} fill={p.patch} />}
+        {pat === 'appaloosa' && hind && (
+          <>
+            <path d={tubeRegion(t, 0, 0.3)} fill={p.white} />
+            <path d={blob(id === 'hn' ? 4 : 8, ...tubePt(t, 0.3, 0).p, tubePt(t, 0.3, 0).w * 1.1, tubePt(t, 0.3, 0).w * 0.7)} fill={p.white} />
+            <TubeSpots tube={t} list={LEG_SPOTS[id].filter(s => s.u < 0.3)} fill={mantaSpot(coat, p)} />
+          </>
+        )}
+        {/* dark points on the lower leg (soft gradient towards the fetlock) */}
+        <path d={tubeRegion(t, kneeU, 1)} fill={`url(#${ctx.uid}-${id}-pt)`} />
+        {coat.cuatroalbo && <Sock tube={t} u0={hind ? 0.77 : 0.74} fill={p.white} />}
+        {/* cel shading: back side band + front highlight */}
+        <path d={tubeRegion(t, 0, 1, 0.45, 1.05)} fill={p.shade} opacity={0.4} />
+        {far && <path d={d} fill={mix(p.coat, '#5a2c14', 0.42)} opacity={0.62} />}
+      </Skin>
+      <path d={tubeSide(t, 1, leg.spec.stroke[0], 1)} fill="none" stroke={p.line} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={tubeSide(t, -1, leg.spec.stroke[1], 1)} fill="none" stroke={p.line} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={leg.hoof.path} fill={far ? mix(p.hoof, '#000', 0.2) : p.hoof} stroke={p.line} strokeWidth={sw * 0.9} strokeLinejoin="round" />
+            {!ctx.icon && <path d={leg.hoof.line} stroke={p.hoofHi} strokeWidth={2.2} strokeLinecap="round" opacity={0.8} />}
     </g>
   )
 }
 
-// ─── PUBLIC COMPONENT ────────────────────────────────────────────────────────
+// ─── head ───────────────────────────────────────────────────────────────────
+function Head({ rig, pose, ctx }: { rig: Rig; pose: Pose; ctx: Ctx }) {
+  const { p, coat, uid } = ctx
+  const sw = 1.5 * (ctx.icon ? 2.3 : 1)
+  const jawDeg = pose.jaw * 24
+  const jawT = `rotate(${jawDeg.toFixed(1)} ${JAW_PIVOT[0]} ${JAW_PIVOT[1]})`
+  const earT = (b: V) => `rotate(${pose.ears.toFixed(1)} ${b[0]} ${b[1]})`
+  const open = pose.jaw > 0.03
+  const mouthGap = open ? (() => {
+    const r = (q: V) => add(JAW_PIVOT, rot(sub(q, JAW_PIVOT), jawDeg))
+    const a = r([198, 98]), b = r([207, 98.5])
+    return `M 187 93 L 198 97.5 L 208 97 L ${b[0].toFixed(1)} ${b[1].toFixed(1)} L ${a[0].toFixed(1)} ${a[1].toFixed(1)} Z`
+  })() : ''
+  return (
+    <g transform={rig.head.t}>
+      <g className="hz-ear hz-ear-f" transform={earT([184, 41])}>
+        <path d={EAR_F} fill={mix(p.coat, '#000', 0.15)} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+        {!ctx.icon && <path d={EAR_F_IN} fill={p.earIn} />}
+      </g>
+      {open && (
+        <g transform={jawT}>
+          <path d={JAW} fill={p.coat} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+          <path d={JAW} fill={p.points} opacity={0.75} />
+          {coat.careto && <path d={JAW} fill={p.white} opacity={0.9} />}
+        </g>
+      )}
+      <Skin id="head" d={HEAD} ctx={ctx} line={HEAD_LINE}>
+        {coat.pattern === 'leopardo' && HEAD_SPOTS.slice(0, ctx.icon ? 3 : 9).map((s, i) =>
+          <Spot key={i} at={[s.x, s.y]} r={s.r * (ctx.icon ? 1.4 : 1)} seed={s.seed} fill={p.spot} />)}
+        <path d={MUZZLE} fill={`url(#${uid}-muz)`} />
+        {coat.careto && <path d={CARETO} fill={p.white} />}
+        <path d="M 172 88 C 184 93 194 98 206 100 L 206 108 L 168 108 Z" fill={p.shade} opacity={0.45} />
+        {!ctx.icon && <path d="M 176 39 C 184 39 190 44 194 50 C 188 47 182 45 176 44 Z" fill={p.hl} opacity={0.6} />}
+      </Skin>
+      {open && <path d={mouthGap} fill="#3a1a18" stroke={p.line} strokeWidth={sw * 0.7} strokeLinejoin="round" />}
+      {!ctx.icon && <path d={CHEEK} fill="none" stroke={p.line} strokeWidth={1.3} strokeLinecap="round" />}
+      <path d={NOSTRIL} fill="none" stroke={coat.careto ? '#6e5448' : p.line} strokeWidth={ctx.icon ? 3 : 2} strokeLinecap="round" />
+      {!ctx.icon && !open && <path d={MOUTH} fill="none" stroke={p.line} strokeWidth={1.1} strokeLinecap="round" />}
+      <g className="hz-eye">
+        <g transform={`translate(${EYE_C[0]} ${EYE_C[1]}) scale(0.88 ${(0.88 * (1 - pose.sleepy * 0.85)).toFixed(2)}) translate(${-EYE_C[0]} ${-EYE_C[1]})`}>
+          <path d={EYE} fill={p.eye} />
+          {!ctx.icon && <circle cx="181.2" cy="59.4" r="1.05" fill="#fff" />}
+          {!ctx.icon && <circle cx="178.1" cy="62.6" r="0.45" fill="#fff" opacity="0.7" />}
+        </g>
+      </g>
+      <path d={pose.sleepy > 0.4 ? 'M 174.6 61.2 C 177.1 63.7 181.6 64 184.5 61.2' : EYELID} fill="none" stroke={p.line} strokeWidth={ctx.icon ? 2.4 : 1.3} strokeLinecap="round" />
+      {!ctx.icon && pose.sleepy <= 0.4 && <path d={LASH} stroke={p.line} strokeWidth={0.9} strokeLinecap="round" />}
+      <g className="hz-ear hz-ear-n" transform={earT([168, 45])}>
+        <path d={EAR_N} fill={p.coat} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+        {!ctx.icon && <path d={EAR_N_IN} fill={p.earIn} />}
+      </g>
+      <path d={FORELOCK} fill={p.mane} stroke={p.line} strokeWidth={sw * 0.8} strokeLinejoin="round" />
+      {!ctx.icon && <path d="M 173 40.5 C 179 38.5 184 40.5 188 45 M 179 42.5 C 182 45 183.5 48 184 51" fill="none" stroke={p.maneHi} strokeWidth={1} strokeLinecap="round" />}
+    </g>
+  )
+}
+
+// ─── side view ──────────────────────────────────────────────────────────────
+function SideHorse({ rig, pose, ctx }: { rig: Rig; pose: Pose; ctx: Ctx }) {
+  const { p, coat } = ctx
+  const pat = coat.pattern
+  const sw = 1.5 * (ctx.icon ? 2.3 : 1)
+  const neck: Tube = rig.neck
+  const L = rig.legs
+  return (
+    <g transform={`translate(0 ${rig.dy.toFixed(1)})`}>
+      <Leg leg={L.hf} id="hf" ctx={ctx} far hind />
+      <Leg leg={L.ff} id="ff" ctx={ctx} far hind={false} />
+
+      {/* tail */}
+      <g className="hz-tailsway">
+        <path d={rig.tail.locks} fill={p.mane} stroke={p.line} strokeWidth={sw * 0.9} strokeLinejoin="round" />
+        <path d={rig.tail.path} fill={p.mane} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+        {!ctx.icon && rig.tail.strands.map((s, i) =>
+          <path key={i} d={s} fill="none" stroke={i === 2 ? p.maneLo : p.maneHi} strokeWidth={i === 2 ? 1.6 : 2} strokeLinecap="round" opacity={0.75} />)}
+      </g>
+
+      <Leg leg={L.hn} id="hn" ctx={ctx} far={false} hind />
+      <Leg leg={L.fn} id="fn" ctx={ctx} far={false} hind={false} />
+
+      {/* neck (base tucked under the torso) */}
+      <Skin id="neck" d={tubeRegion(neck)} ctx={ctx} line={null}>
+        {pat === 'leopardo' && <TubeSpots tube={neck} list={ctx.icon ? NECK_SPOTS.slice(0, 4) : NECK_SPOTS} fill={p.spot} scale={ctx.icon ? 1.3 : 1} />}
+        {pat === 'pio' && <path d={tubeBlob(neck, 0.42, 0.15, 0.85, 13)} fill={p.patch} />}
+        <path d={tubeRegion(neck, 0.3, 1, 0.72, 1.05)} fill={p.shade} opacity={0.4} />
+        <path d={tubeRegion(neck, 0.3, 1, -1.05, -0.7)} fill={p.shade} opacity={0.4} />
+      </Skin>
+      <path d={tubeSide(neck, 1, 0.12, 1)} fill="none" stroke={p.line} strokeWidth={sw} strokeLinecap="round" />
+
+      {/* torso */}
+      <g transform={rig.torsoT}>
+        <g className="hz-breathe">
+          <Skin id="torso" d={TORSO} ctx={ctx} line={TORSO_LINE}>
+            {pat === 'leopardo' && TORSO_SPOTS.slice(0, ctx.icon ? 12 : 99).map((s, i) =>
+              <Spot key={i} at={[s.x, s.y]} r={s.r * (ctx.icon ? 1.35 : 1)} seed={s.seed} fill={p.spot} />)}
+            {pat === 'pio' && PIO_TORSO.map((d, i) => <path key={i} d={d} fill={p.patch} />)}
+            {pat === 'appaloosa' && (
+              <>
+                <path d={MANTA} fill={p.white} />
+                {MANTA_SPOTS.slice(0, ctx.icon ? 6 : 99).map((s, i) =>
+                  <Spot key={i} at={[s.x, s.y]} r={s.r * (ctx.icon ? 1.4 : 1)} seed={s.seed} fill={mantaSpot(coat, p)} />)}
+              </>
+            )}
+            <path d={TORSO_SHADE} fill={p.shade} opacity={0.55} />
+          </Skin>
+          {!ctx.icon && <path d={TORSO_LINES} fill="none" stroke={p.line} strokeWidth={1.1} strokeLinecap="round" />}
+        </g>
+      </g>
+
+      {/* mane */}
+      <g className="hz-manesway">
+        <path d={rig.mane.path} fill={p.mane} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+        {!ctx.icon && rig.mane.strands.map((s, i) =>
+          <path key={i} d={s} fill="none" stroke={p.maneHi} strokeWidth={1.1} strokeLinecap="round" opacity={0.8} />)}
+      </g>
+
+      <Head rig={rig} pose={pose} ctx={ctx} />
+    </g>
+  )
+}
+
+// ─── front view ("De frente") ───────────────────────────────────────────────
+const F = {
+  body: 'M 84 104 C 68 110 57 124 56 146 C 55 164 61 178 74 186 L 138 186 C 151 178 157 164 156 146 C 155 124 144 110 128 104 Z',
+  chest: 'M 82 150 C 90 162 99 168 106 170 C 113 168 122 162 130 150 M 106 172 L 106 184',
+  neck: 'M 90 64 C 88 84 85 100 82 114 L 130 114 C 127 100 124 84 122 64 Z',
+  head: 'M 106 33 C 95.5 33 89 40 89 51 C 89 61 92 70 95.5 79 C 97.5 85 96.5 92 97.5 98.5 C 98.5 104 101.5 106.5 106 106.5 ' +
+        'C 110.5 106.5 113.5 104 114.5 98.5 C 115.5 92 114.5 85 116.5 79 C 120 70 123 61 123 51 C 123 40 116.5 33 106 33 Z',
+  muzzle: 'M 96 86 C 100 82 112 82 116 86 L 118 110 L 94 110 Z',
+  careto: 'M 102.5 38 C 101 48 103 58 103.2 68 C 103.4 78 100.5 88 99.5 100 L 112.5 100 C 111.5 88 108.6 78 108.8 68 C 109 58 111 48 109.5 38 Z',
+  earL: 'M 94.5 42 C 91.5 35 91 28.5 92.5 22 C 97.5 26 100.5 32 101 39 Z',
+  earR: 'M 117.5 42 C 120.5 35 121 28.5 119.5 22 C 114.5 26 111.5 32 111 39 Z',
+  forelock: 'M 96 38 C 100 32 112 32 116 38 C 114 44 112 47 110 52 C 109 47 108 45 106 44 C 104 46 103 49 102 54 C 100 48 98 43 96 38 Z',
+  mane: 'M 92 44 C 84 58 81 80 82 110 C 84 116 88 120 90 118 C 88 100 89 84 92 70 C 94 60 97 52 98 46 Z',
+  tail: 'M 70 176 C 62 196 60 222 64 252 C 68 262 74 262 78 254 C 78 226 78 200 80 180 Z',
+}
+const F_SPOTS = scatter(71, [58, 106, 154, 184], 14, 3.4, 6.6, (x, y) => Math.hypot(x - 106, (y - 140) * 0.9) < 54)
+const F_HEAD_SPOTS = scatter(73, [90, 44, 122, 84], 6, 1.8, 3.2, (x, y) => Math.abs(x - 106) > 5 && Math.hypot(Math.abs(x - 106) - 11, y - 61) > 6)
+const F_NECK_SPOTS = scatter(79, [86, 70, 126, 112], 4, 3, 5)
+const F_LEGS = {
+  l:  buildTube([[90, 174], [89.5, 214], [90, 264], [91, 281]], [[10, 9], [6.6, 6.6], [5.6, 5.6], [5, 5]]),
+  r:  buildTube([[122, 174], [122.5, 214], [122, 264], [121, 281]], [[9, 10], [6.6, 6.6], [5.6, 5.6], [5, 5]]),
+  hl: buildTube([[76, 186], [77, 222], [78, 266], [79, 276]], [[7, 7], [5.6, 5.6], [5, 5], [4.6, 4.6]]),
+  hr: buildTube([[108, 186], [107, 222], [106.5, 266], [106.5, 276]], [[7, 7], [5.6, 5.6], [5, 5], [4.6, 4.6]]),
+}
+const F_LEG_SPOTS = tubeScatter(83, 5, 0.04, 0.6, 0.4, 0.6)
+
+function frontHoof(x: number, y: number, s = 1) {
+  return `M ${x - 6.5 * s} ${y} L ${x + 6.5 * s} ${y} Q ${x + 8 * s} ${y + 6.5 * s} ${x + 7.5 * s} ${y + 8 * s} L ${x - 7.5 * s} ${y + 8 * s} Q ${x - 8 * s} ${y + 6.5 * s} ${x - 6.5 * s} ${y} Z`
+}
+
+function FrontHorse({ ctx }: { ctx: Ctx }) {
+  const { p, coat, uid } = ctx
+  const pat = coat.pattern
+  const sw = 1.5 * (ctx.icon ? 2.3 : 1)
+  const leg = (t: Tube, id: string, far: boolean, hx: number, hy: number) => (
+    <g>
+      <Skin id={id} d={tubeRegion(t)} ctx={ctx} line={null}>
+        {pat === 'leopardo' && <TubeSpots tube={t} list={F_LEG_SPOTS} fill={p.spot} />}
+        <path d={tubeRegion(t, 0.55, 1)} fill={p.points} opacity={0.38} />
+        <path d={tubeRegion(t, 0.7, 1)} fill={p.points} opacity={0.55} />
+        {coat.cuatroalbo && <Sock tube={t} u0={0.72} fill={p.white} />}
+        <path d={tubeRegion(t, 0, 1, 0.3, 1.05)} fill={p.shade} opacity={0.5} />
+        {far && <path d={tubeRegion(t)} fill="#2a160c" opacity={0.28} />}
+      </Skin>
+      <path d={tubeSide(t, 1, 0.1)} fill="none" stroke={p.line} strokeWidth={sw} strokeLinecap="round" />
+      <path d={tubeSide(t, -1, 0.1)} fill="none" stroke={p.line} strokeWidth={sw} strokeLinecap="round" />
+      <path d={frontHoof(hx, hy, far ? 0.85 : 1)} fill={far ? mix(p.hoof, '#000', 0.2) : p.hoof} stroke={p.line} strokeWidth={sw * 0.9} strokeLinejoin="round" />
+    </g>
+  )
+  return (
+    <g>
+      <path d={F.tail} fill={p.mane} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+      {leg(F_LEGS.hl, 'fhl', true, 79, 277)}
+      {leg(F_LEGS.hr, 'fhr', true, 106.5, 277)}
+      <Skin id="fbody" d={F.body} ctx={ctx}>
+        {pat === 'leopardo' && F_SPOTS.map((s, i) => <Spot key={i} at={[s.x, s.y]} r={s.r} seed={s.seed} fill={p.spot} />)}
+        {pat === 'pio' && <path d={blob(5, 96, 160, 22, 16)} fill={p.patch} />}
+        {pat === 'appaloosa' && <path d="M 50 100 L 76 100 C 66 120 64 140 70 160 L 50 160 Z M 162 100 L 136 100 C 146 120 148 140 142 160 L 162 160 Z" fill={p.white} />}
+        <path d="M 50 156 C 70 176 142 176 162 156 L 162 200 L 50 200 Z" fill={p.shade} opacity={0.5} />
+        <path d="M 50 110 C 58 140 62 160 74 186 L 50 186 Z M 162 110 C 154 140 150 160 138 186 L 162 186 Z" fill={p.shade} opacity={0.45} />
+      </Skin>
+      {!ctx.icon && <path d={F.chest} fill="none" stroke={p.line} strokeWidth={1.1} strokeLinecap="round" />}
+      {leg(F_LEGS.l, 'fl', false, 91, 281)}
+      {leg(F_LEGS.r, 'fr', false, 121, 281)}
+      <Skin id="fneck" d={F.neck} ctx={ctx}>
+        {pat === 'leopardo' && F_NECK_SPOTS.map((s, i) => <Spot key={i} at={[s.x, s.y]} r={s.r} seed={s.seed} fill={p.spot} />)}
+        {pat === 'pio' && <path d={blob(13, 114, 96, 9, 12)} fill={p.patch} />}
+        <path d="M 80 104 L 132 104 L 132 116 L 80 116 Z" fill={p.shade} opacity={0.45} />
+      </Skin>
+      <path d={F.mane} fill={p.mane} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+      <path d={F.earL} fill={p.coat} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+      <path d={F.earR} fill={p.coat} stroke={p.line} strokeWidth={sw} strokeLinejoin="round" />
+      {!ctx.icon && <path d="M 95 39 C 93.5 34 93.5 29 94 25.5 C 97 29 98.6 33 98.8 37.5 Z M 117 39 C 118.5 34 118.5 29 118 25.5 C 115 29 113.4 33 113.2 37.5 Z" fill={p.earIn} />}
+      <Skin id="fhead" d={F.head} ctx={ctx}>
+        {pat === 'leopardo' && F_HEAD_SPOTS.map((s, i) => <Spot key={i} at={[s.x, s.y]} r={s.r} seed={s.seed} fill={p.spot} />)}
+        <path d={F.muzzle} fill={`url(#${uid}-fmuz)`} />
+        {coat.careto && <path d={F.careto} fill={p.white} />}
+        <path d="M 86 44 C 92 60 94 80 98 106 L 86 106 Z" fill={p.shade} opacity={0.45} />
+      </Skin>
+      <path d="M 101.5 95 C 99 96 98.5 99 100.5 100.5 M 110.5 95 C 113 96 113.5 99 111.5 100.5" fill="none" stroke={p.line} strokeWidth={ctx.icon ? 3 : 1.8} strokeLinecap="round" />
+      <g className="hz-eye">
+        <ellipse cx="95.6" cy="61" rx="2.6" ry="3" fill={p.eye} />
+        <ellipse cx="116.4" cy="61" rx="2.6" ry="3" fill={p.eye} />
+        {!ctx.icon && <><circle cx="96.4" cy="60" r="0.8" fill="#fff" /><circle cx="117.2" cy="60" r="0.8" fill="#fff" /></>}
+      </g>
+      <path d="M 92.2 58.5 C 93.5 56.2 97 56 99 58 M 119.8 58.5 C 118.5 56.2 115 56 113 58" fill="none" stroke={p.line} strokeWidth={1.2} strokeLinecap="round" />
+      <path d={F.forelock} fill={p.mane} stroke={p.line} strokeWidth={sw * 0.8} strokeLinejoin="round" />
+    </g>
+  )
+}
+
+// ─── emotes (drawn in SVG space, anchored to the rig) ───────────────────────
+const TICK = '#9DAF7E'
+function Emote({ e, t, rig }: { e: EmoteDef; t: number; rig: Rig }) {
+  const k = (t - e.from) / (e.to - e.from)
+  if (k <= 0 || k >= 1) return null
+  const op = Math.min(1, k * 6, (1 - k) * 6)
+  const pop = 0.7 + 0.3 * Math.min(1, k * 5)
+  const wob = Math.sin(k * Math.PI * 10) * 1.5
+  const head = add(rig.head.at, [0, rig.dy])
+  let at: V
+  switch (e.at) {
+    case 'head': at = head; break
+    case 'hooves': at = add(rig.legs.fn.hoof.at, [10, rig.dy - 6]); break
+    case 'tail': at = add(rig.toWorld([40, 121]), [-8, rig.dy + 10]); break
+    default: at = add(rig.toWorld([110, 108]), [-10, rig.dy - 22])
+  }
+  const g = (children: ReactNode, dx = 0, dy = 0) => (
+    <g opacity={op} transform={`translate(${(at[0] + dx).toFixed(1)} ${(at[1] + dy + wob * 0.4).toFixed(1)}) scale(${pop.toFixed(2)})`}>{children}</g>
+  )
+  const ticks = (
+    <g stroke={TICK} strokeWidth={3.2} strokeLinecap="round" fill="none">
+      <path d="M -14 4 L -5 6" /><path d="M -10 -10 L -3 -2" /><path d="M 2 -14 L 3 -5" />
+    </g>
+  )
+  switch (e.kind) {
+    case 'ticks': return g(ticks, -4, 0)
+    case 'neigh': return g(
+      <g stroke={TICK} strokeWidth={2.8} strokeLinecap="round" fill="none">
+        {[0, 1, 2].map(i => {
+          const s = ((k * 3 + i / 3) % 1)
+          return <path key={i} d={`M ${8 + s * 18} ${-10 - s * 6} q ${6 + s * 6} ${8 + s * 6} 0 ${16 + s * 12}`} opacity={1 - s} />
+        })}
+      </g>, 46, 30)
+    case 'munch': return g(
+      <g fill="none" stroke={TICK} strokeWidth={2.6} strokeLinecap="round">
+        <path d="M 30 70 l -3 -8 M 35 71 l 1 -9 M 40 70 l 4 -7" />
+        <path d={`M 18 ${44 + wob} l -8 -4`} /><path d={`M 22 ${36 + wob} l -4 -8`} />
+      </g>, 0, 0)
+    case 'speed': return g(
+      <g stroke={TICK} strokeWidth={3} strokeLinecap="round">
+        {[0, 1, 2].map(i => {
+          const s = (k * 4 + i / 3) % 1
+          return <path key={i} d={`M ${-10 - s * 30} ${-20 + i * 16} l ${-14 + s * 6} 0`} opacity={1 - s} />
+        })}
+      </g>)
+    case 'zzz': return g(
+      <g fill={TICK} fontFamily="system-ui, sans-serif" fontWeight={800}>
+        {[0, 1, 2].map(i => {
+          const s = (k * 2 + i / 3) % 1
+          return <text key={i} x={10 + s * 16} y={-18 - s * 22} fontSize={8 + s * 8} opacity={1 - s}>z</text>
+        })}
+      </g>)
+    case 'hearts': return g(
+      <g>
+        {ticks}
+        <path transform={`translate(${-28} ${-18 + wob}) scale(.5)`} d="M22 36 C 6 24 2 16 6 9 C 10 3 18 4 22 11 C 26 4 34 3 38 9 C 42 16 38 24 22 36 Z" fill="#C4607A" />
+      </g>, -6, -6)
+  }
+}
+
+// ─── timeline ───────────────────────────────────────────────────────────────
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+function poseAt(id: string, t: number, still: boolean): Pose {
+  const a = HORSE_ANIMATIONS.find(x => x.id === id)
+  if (!a) return POSES.stand
+  const keyPose = (i: number) => {
+    const [, name, over] = a.keys[i]
+    return over ? { ...POSES[name], ...over } : POSES[name]
+  }
+  if (still) return t > 0.04 && t < 0.96 ? keyPose(a.still ?? 1) : POSES.stand
+  let i = 0
+  while (i < a.keys.length - 2 && a.keys[i + 1][0] <= t) i++
+  const [t0] = a.keys[i], [t1] = a.keys[i + 1]
+  const k = Math.max(0, Math.min(1, (t - t0) / ((t1 - t0) || 1)))
+  return lerpPose(keyPose(i), keyPose(i + 1), ease(k))
+}
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
+/** Drives the action timeline with rAF; returns the current progress (0..1) or null. */
+function useTimeline(anim: string, live: boolean) {
+  const [t, setT] = useState<number | null>(null)
+  const raf = useRef(0)
+  useEffect(() => {
+    const def = HORSE_ANIMATIONS.find(a => a.id === anim)
+    if (!def || !live) { setT(null); return }
+    const start = performance.now()
+    const tick = (now: number) => {
+      const k = (now - start) / def.ms
+      if (k >= 1) { setT(null); return }
+      setT(k)
+      raf.current = requestAnimationFrame(tick)
+    }
+    raf.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf.current)
+  }, [anim, live])
+  return t
+}
+
+// ─── PUBLIC COMPONENT ───────────────────────────────────────────────────────
 export interface HorseFigureProps {
   coat: HorseCoat
   /** Current action animation id (see HORSE_ANIMATIONS) or 'idle'. */
   anim?: string
-  /** Enables idle loop (breathing, tail, blink) and actions. */
+  /** Enables idle loops (breathing, tail, blink) and actions. */
   live?: boolean
+  /** 'pedestal' = pale green backdrop blob + ground ellipse (stage), 'shadow' = ground ellipse only. */
   ground?: 'shadow' | 'pedestal' | 'none'
   viewBox?: string
   className?: string
   style?: CSSProperties
+  /** Static pose to draw when no action is playing (default 'stand'). */
+  pose?: PoseName
+  /** Icon mode: thicker lines, fewer/larger spots, no fine details (tiles). */
+  icon?: boolean
 }
 
 let cssInjected = false
@@ -322,162 +473,93 @@ function useHorseCss() {
   }
 }
 
+export const HORSE_VIEWBOX = '-14 4 248 300'
+
 export function HorseFigure({
   coat, anim = 'idle', live = false, ground = 'shadow',
-  viewBox = '0 0 240 200', className, style,
+  viewBox = HORSE_VIEWBOX, className, style, pose: poseName = 'stand', icon = false,
 }: HorseFigureProps) {
   useHorseCss()
   const uid = 'hz' + useId().replace(/[^a-zA-Z0-9]/g, '')
+  const t = useTimeline(anim, live)
+  const reduced = prefersReducedMotion()
+  const pose = t === null ? POSES[poseName] : poseAt(anim, t, reduced)
+  const rig = t === null ? solveNamed(poseName) : solve(pose)
   const p = palette(coat)
-  const pat = coat.pattern
+  const ctx: Ctx = { coat, p, uid, icon }
+  const def = t === null ? undefined : HORSE_ANIMATIONS.find(a => a.id === anim)
+
+  const fr = pose.front
+  const squash = Math.sin(Math.PI * fr)
+  const cx = rig.shadowX
+  const sideT = `translate(${cx} ${GROUND}) scale(${(1 - 0.16 * squash).toFixed(3)} ${(1 + 0.02 * squash).toFixed(3)}) translate(${-cx} ${-GROUND})`
+  const shadowScale = Math.max(0.5, 1 + Math.min(0, rig.dy - (POSES.stand.gl ? 0 : 0)) * 0) - Math.min(0.4, Math.max(0, -pose.lift) / 60)
 
   return (
     <svg viewBox={viewBox} className={`hz${live ? ' hz-live' : ''}${className ? ' ' + className : ''}`}
-         data-anim={anim} style={style} preserveAspectRatio="xMidYMid meet"
+         data-anim={t === null ? 'idle' : anim} style={style} preserveAspectRatio="xMidYMid meet"
          role="img" aria-label="Caballo">
       <defs>
-        <linearGradient id={`${uid}-shade`} gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="190">
-          <stop offset="0"    stopColor="#fff" stopOpacity="0.30" />
-          <stop offset="0.36" stopColor="#fff" stopOpacity="0.07" />
-          <stop offset="0.5"  stopColor="#fff" stopOpacity="0" />
-          <stop offset="0.6"  stopColor="#000" stopOpacity="0" />
-          <stop offset="0.72" stopColor="#000" stopOpacity="0.20" />
-          <stop offset="1"    stopColor="#000" stopOpacity="0.10" />
+        <linearGradient id={`${uid}-muz`} gradientUnits="userSpaceOnUse" x1="181" y1="54" x2="206" y2="95">
+          <stop offset="0.05" stopColor={p.points} stopOpacity="0" />
+          <stop offset="0.45" stopColor={p.points} stopOpacity="0.72" />
+          <stop offset="1" stopColor={p.points} stopOpacity="1" />
         </linearGradient>
-        <radialGradient id={`${uid}-gloss`}>
-          <stop offset="0" stopColor="#fff" stopOpacity="0.38" />
-          <stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id={`${uid}-ground`}>
-          <stop offset="0"   stopColor="#1a0c06" stopOpacity="0.42" />
-          <stop offset="0.6" stopColor="#1a0c06" stopOpacity="0.16" />
-          <stop offset="1"   stopColor="#1a0c06" stopOpacity="0" />
-        </radialGradient>
-        {ground === 'pedestal' && (
-          <>
-            <radialGradient id={`${uid}-grass`} cx="0.45" cy="0.35" r="0.75">
-              <stop offset="0"   stopColor="#B9DC86" />
-              <stop offset="0.6" stopColor="#8DC15E" />
-              <stop offset="1"   stopColor="#6B9E43" />
-            </radialGradient>
-            <linearGradient id={`${uid}-soil`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#7A5434" />
-              <stop offset="1" stopColor="#4E3220" />
-            </linearGradient>
-          </>
-        )}
+        <linearGradient id={`${uid}-fmuz`} gradientUnits="userSpaceOnUse" x1="0" y1="78" x2="0" y2="100">
+          <stop offset="0" stopColor={p.points} stopOpacity="0" />
+          <stop offset="0.5" stopColor={p.points} stopOpacity="0.7" />
+          <stop offset="1" stopColor={p.points} stopOpacity="0.95" />
+        </linearGradient>
       </defs>
 
-      {ground === 'pedestal' && (
-        <g className="hz-pedestal">
-          <path d="M 16 189 A 104 21 0 0 0 224 189 L 224 197 A 104 21 0 0 1 16 197 Z" fill={`url(#${uid}-soil)`} />
-          <ellipse cx="120" cy="189" rx="104" ry="21" fill={`url(#${uid}-grass)`} />
-          <ellipse cx="120" cy="189" rx="104" ry="21" fill="none" stroke="#E4F3C8" strokeOpacity="0.7" strokeWidth="1.4" />
-          <ellipse cx="120" cy="189.5" rx="82" ry="15" fill="none" stroke="#fff" strokeOpacity="0.35" strokeWidth="1.2" strokeDasharray="3 4" />
-          <g fill="none" stroke="#5E8F38" strokeWidth="1.3" strokeLinecap="round">
-            <path d="M 34 192 l -2 -6 M 37 193 l 1 -7 M 40 192 l 3 -5" />
-            <path d="M 196 186 l -2 -6 M 199 187 l 1 -7 M 202 186 l 3 -5" />
-            <path d="M 118 203 l -2 -5 M 121 204 l 1 -6 M 124 203 l 3 -4" stroke="#6F9F46" />
-            <path d="M 70 200 l -1 -5 M 73 200 l 2 -5" />
-          </g>
-          <circle cx="58" cy="196" r="1.8" fill="#fff" opacity="0.85" />
-          <circle cx="56.5" cy="195" r="1.1" fill="#F6D36B" />
-          <circle cx="182" cy="198" r="1.6" fill="#fff" opacity="0.85" />
-          <circle cx="183.2" cy="197" r="1" fill="#F6D36B" />
-        </g>
-      )}
+      {ground === 'pedestal' && <path d={BACKDROP} fill="#D9DDC6" />}
       {ground !== 'none' && (
-        <ellipse className="hz-shadow" cx="122" cy="187.5" rx="66" ry="8.5"
-                 fill={`url(#${uid}-ground)`} style={{ transformOrigin: '122px 187.5px' }} />
+        <ellipse cx={(cx - 8).toFixed(1)} cy={GROUND} rx={(92 * shadowScale).toFixed(1)} ry={(8.5 * shadowScale).toFixed(1)}
+                 fill={ground === 'pedestal' ? '#C1C5A2' : 'rgba(40,30,20,.16)'} />
       )}
 
-      <g className="hz-rig">
-        <g className="hz-body">
-          {/* far legs */}
-          <Leg geo={HIND_LEG}  kind="hind"  cls="hz-fh" far dx={-12} dy={-3} p={p} coat={coat} uid={uid} />
-          <Leg geo={FRONT_LEG} kind="front" cls="hz-ff" far dx={11}  dy={-3} p={p} coat={coat} uid={uid} />
-
-          {/* tail */}
-          <g className="hz-tail">
-            <path d={TAIL} fill={p.mane} stroke={mix(p.mane, '#000', 0.35)} strokeWidth={1.2} strokeLinejoin="round" />
-            <path d={TAIL_STRANDS} fill="none" stroke={p.maneHi} strokeWidth={1.1} strokeLinecap="round" opacity={0.8} />
-          </g>
-
-          {/* near legs (tops tucked under the barrel) */}
-          <Leg geo={HIND_LEG}  kind="hind"  cls="hz-nh" far={false} dx={0} dy={0} p={p} coat={coat} uid={uid} />
-          <Leg geo={FRONT_LEG} kind="front" cls="hz-nf" far={false} dx={0} dy={0} p={p} coat={coat} uid={uid} />
-
-          {/* barrel */}
-          <g className="hz-barrel">
-            <Skin id="barrel" d={BARREL} p={p} uid={uid}>
-              {pat === 'leopardo' && <Spots list={LEO.barrel} fill={p.spot} />}
-              {pat === 'pio' && PIO.barrel.map((b, i) => <path key={i} d={b} fill={p.spot} />)}
-              {pat === 'appaloosa' && (
-                <>
-                  <path d={MANTA_BARREL} fill={p.blanket} />
-                  <Spots list={MANTA_SPOTS.barrel} fill={p.mantaSpot} />
-                </>
-              )}
-              <ellipse cx="132" cy="94" rx="34" ry="8" fill={`url(#${uid}-gloss)`} />
-              <ellipse cx="166" cy="92" rx="14" ry="9" fill={`url(#${uid}-gloss)`} />
-              <ellipse cx="78" cy="98" rx="10" ry="10" fill={`url(#${uid}-gloss)`} opacity={0.7} />
-            </Skin>
-          </g>
-
-          {/* neck + head */}
-          <g className="hz-neck">
-            <Skin id="neck" d={NECK} line={NECK_LINE} p={p} uid={uid}>
-              {pat === 'leopardo' && <Spots list={LEO.neck} fill={p.spot} />}
-              {pat === 'pio' && PIO.neck.map((b, i) => <path key={i} d={b} fill={p.spot} />)}
-              <ellipse cx="68" cy="62" rx="9" ry="16" fill={`url(#${uid}-gloss)`} opacity={0.6}
-                       transform="rotate(-30 68 62)" />
-            </Skin>
-            <g className="hz-mane" style={{ transformOrigin: '70px 40px' }}>
-              <path d={MANE} fill={p.mane} stroke={mix(p.mane, '#000', 0.35)} strokeWidth={1.1} strokeLinejoin="round" />
-              <path d={MANE_STRANDS} fill="none" stroke={p.maneHi} strokeWidth={1} strokeLinecap="round" opacity={0.85} />
-            </g>
-
-            <g className="hz-head" style={{ transformOrigin: '60px 44px' }}>
-             <g transform="translate(60 44) scale(1.1) translate(-60 -44)">
-              {/* far ear */}
-              <g className="hz-ear hz-ear-far" style={{ transformOrigin: '67px 34px' }}>
-                <path d={shift(EAR, 6, 1)} fill={mix(p.ink, '#000', 0.3)} stroke={p.line} strokeWidth={1.1} strokeLinejoin="round" />
-              </g>
-              <path d={MOUTH} fill="#4A1E22" />
-              <g className="hz-jaw" style={{ transformOrigin: '46px 75px' }}>
-                <path d={JAW} fill={p.ink} stroke={p.line} strokeWidth={1.1} strokeLinejoin="round" />
-                {coat.careto && <path d={JAW} fill={p.white} opacity={0.95} />}
-              </g>
-              <Skin id="head" d={HEAD} p={p} uid={uid}>
-                {pat === 'leopardo' && <Spots list={LEO.head} fill={p.spot} />}
-                <path d={MUZZLE} fill="#000" opacity={0.12} />
-                {coat.careto && <path d={CARETO} fill={p.white} />}
-                <ellipse cx="60" cy="56" rx="8" ry="7" fill={`url(#${uid}-gloss)`} opacity={0.8} />
-              </Skin>
-              {/* nostril + mouth line */}
-              <path d="M 29.5 67 C 28 69 28.5 72 30.5 72.5" fill="none"
-                    stroke={coat.careto ? '#8A6F66' : mix(p.line, '#000', 0.3)} strokeWidth={1.6} strokeLinecap="round" />
-              <path d="M 33 78.5 C 37 78.6 41 77.6 44 75.6" fill="none"
-                    stroke={coat.careto ? '#8A6F66' : p.line} strokeWidth={1} strokeLinecap="round" />
-              {/* eye */}
-              <g className="hz-eye" style={{ transformOrigin: '55px 45px' }}>
-                <ellipse cx="55" cy="45" rx="4.3" ry="4.9" fill={p.eye} />
-                <circle cx="53.6" cy="43.1" r="1.6" fill="#fff" />
-                <circle cx="56.3" cy="47" r="0.6" fill="#fff" opacity="0.8" />
-              </g>
-              <path d="M 50.5 41.5 C 52.5 39 57 38.6 59.5 41" fill="none" stroke={p.line} strokeWidth={1.1} strokeLinecap="round" />
-              {/* near ear */}
-              <g className="hz-ear hz-ear-near" style={{ transformOrigin: '62px 34px' }}>
-                <path d={EAR} fill={p.ink} stroke={p.line} strokeWidth={1.2} strokeLinejoin="round" />
-                <path d={EAR_IN} fill={mix(p.ink, '#2a1410', 0.45)} />
-              </g>
-              <path d={FORELOCK} fill={p.mane} stroke={mix(p.mane, '#000', 0.35)} strokeWidth={0.9} strokeLinejoin="round" />
-             </g>
-            </g>
-          </g>
+      {fr < 0.99 && (
+        <g transform={sideT} opacity={fr > 0 ? Math.max(0, 1 - fr * 1.6).toFixed(2) : undefined}>
+          <SideHorse rig={rig} pose={pose} ctx={ctx} />
         </g>
-      </g>
+      )}
+      {fr > 0.01 && (
+        <g opacity={Math.min(1, Math.max(0, fr * 1.6 - 0.6)).toFixed(2)}
+           transform={`translate(106 ${GROUND}) scale(${(0.84 + 0.16 * fr).toFixed(3)} 1) translate(-106 ${-GROUND})`}>
+          <FrontHorse ctx={ctx} />
+        </g>
+      )}
+      {def?.emotes?.map((e, i) => <Emote key={i} e={e} t={t!} rig={rig} />)}
     </svg>
   )
 }
 
+/** Render helper for previews/tests: a specific pose, no timeline. */
+export function HorsePoseStatic({ coat, pose, ground = 'pedestal', viewBox = HORSE_VIEWBOX, style, emote }: {
+  coat: HorseCoat; pose: Pose; ground?: 'shadow' | 'pedestal' | 'none'; viewBox?: string; style?: CSSProperties; emote?: { e: EmoteDef; t: number }
+}) {
+  const uid = 'hzs' + useId().replace(/[^a-zA-Z0-9]/g, '')
+  const rig = solve(pose)
+  const p = palette(coat)
+  const ctx: Ctx = { coat, p, uid, icon: false }
+  return (
+    <svg viewBox={viewBox} style={style} className="hz">
+      <defs>
+        <linearGradient id={`${uid}-muz`} gradientUnits="userSpaceOnUse" x1="181" y1="54" x2="206" y2="95">
+          <stop offset="0.05" stopColor={p.points} stopOpacity="0" />
+          <stop offset="0.45" stopColor={p.points} stopOpacity="0.72" />
+          <stop offset="1" stopColor={p.points} stopOpacity="1" />
+        </linearGradient>
+        <linearGradient id={`${uid}-fmuz`} gradientUnits="userSpaceOnUse" x1="0" y1="78" x2="0" y2="100">
+          <stop offset="0" stopColor={p.points} stopOpacity="0" />
+          <stop offset="0.5" stopColor={p.points} stopOpacity="0.7" />
+          <stop offset="1" stopColor={p.points} stopOpacity="0.95" />
+        </linearGradient>
+      </defs>
+      {ground === 'pedestal' && <path d={BACKDROP} fill="#D9DDC6" />}
+      {ground !== 'none' && <ellipse cx={rig.shadowX - 8} cy={GROUND} rx={92} ry={8.5} fill="#C1C5A2" />}
+      {pose.front > 0.5 ? <FrontHorse ctx={ctx} /> : <SideHorse rig={rig} pose={pose} ctx={ctx} />}
+      {emote && <Emote e={emote.e} t={emote.t} rig={rig} />}
+    </svg>
+  )
+}
