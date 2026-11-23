@@ -158,3 +158,5 @@ S.rear.anchors.hooves = [1468, 175]
 S.stand.anchors.back = [345, 150]
 S.rear.zones.erase = [[[1225, 455], [1505, 455], [1505, 462], [1225, 462]]]
 
+S.graze.zones.tail = [...S.graze.zones.tail, [[1002, 148], [980, 148], [955, 182], [934, 222], [918, 268], [910, 310], [922, 338], [946, 326], [944, 290], [947, 250], [955, 220], [970, 192], [995, 165]]]
+for (const p of ['front', 'graze', 'rear', 'gallop', 'rest']) S[p].inkThr = 0.58
