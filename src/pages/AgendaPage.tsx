@@ -7,6 +7,7 @@ import {
   useDailyNote, useUpsertDailyNote, useAutoTasks,
 } from '../hooks/useTasks'
 import type { Task } from '../types'
+import NotificationsCard from '../components/NotificationsCard'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -488,6 +489,11 @@ export default function AgendaPage() {
         {/* Daily note */}
         <div className="pt-3">
           <DailyNoteCard />
+        </div>
+
+        {/* Push notifications */}
+        <div className="pt-2">
+          <NotificationsCard />
         </div>
 
         {/* Empty state */}

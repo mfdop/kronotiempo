@@ -1,0 +1,4 @@
+# Minimal config so `supabase functions deploy` doesn't enforce gateway JWT checks:
+# the function authenticates callers itself (user JWT for test mode, CRON_SECRET / service role for daily mode).
+[functions.send-reminders]
+verify_jwt = false
