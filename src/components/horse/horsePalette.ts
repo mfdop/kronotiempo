@@ -38,7 +38,9 @@ export function palette(c: HorseCoat): Pal {
     spot: c.spotInk,
     spotCore: spotL > 0.55 ? '#FFFFFF' : mix(c.spotInk, '#140A04', 0.35),
     white: '#FBF7F0',
-    hair: pt('#72594A'), hairD: pt('#422F25'), hairL: pt('#9C816F'), hairLL: pt('#C6AD9B'),
+    ...(c.maneInk
+      ? { hair: c.maneInk, hairD: mix(c.maneInk, '#0E0A08', 0.4), hairL: mix(c.maneInk, '#FFFFFF', 0.25), hairLL: mix(c.maneInk, '#FFFFFF', 0.5) }
+      : { hair: pt('#72594A'), hairD: pt('#422F25'), hairL: pt('#9C816F'), hairLL: pt('#C6AD9B') }),
     hoof: '#655245', hoofL: '#AD9889',
     line: '#261810',
   }
