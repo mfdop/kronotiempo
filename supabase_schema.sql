@@ -39,6 +39,7 @@ create table animals (
   -- azulejo
   azulejo_ink          text default '#4A2810',
   azulejo_bg           text default '#F0E4D4',
+  azulejo_mane_ink     text,
   -- genealogy
   sire_id              uuid references animals(id),
   sire_external_name   text,

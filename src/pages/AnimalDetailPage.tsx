@@ -56,7 +56,7 @@ export default function AnimalDetailPage() {
   const tabs = getTabs(animal)
 
   const handleAzulejoSave = (vals: {
-    azulejo_ink: string; azulejo_bg: string; azulejo_spot_ink: string
+    azulejo_ink: string; azulejo_bg: string; azulejo_spot_ink: string; azulejo_mane_ink: string | null
     coat_pattern: string; coat_careto: boolean; coat_cuatroalbo: boolean
   }) => {
     updateAnimal.mutate({
@@ -64,6 +64,7 @@ export default function AnimalDetailPage() {
       azulejo_ink:      vals.azulejo_ink,
       azulejo_bg:       vals.azulejo_bg,
       azulejo_spot_ink: vals.azulejo_spot_ink,
+      azulejo_mane_ink: vals.azulejo_mane_ink,
       coat_pattern:     vals.coat_pattern as import('../types').CoatPattern,
       coat_careto:      vals.coat_careto,
       coat_cuatroalbo:  vals.coat_cuatroalbo,
@@ -141,6 +142,7 @@ export default function AnimalDetailPage() {
           azulejo_ink:      animal.azulejo_ink      ?? '#4A2810',
           azulejo_bg:       animal.azulejo_bg       ?? '#F0E4D4',
           azulejo_spot_ink: animal.azulejo_spot_ink ?? '#1A100C',
+          azulejo_mane_ink: animal.azulejo_mane_ink ?? null,
           coat_pattern:     animal.coat_pattern     ?? 'lisa',
           coat_careto:      animal.coat_careto      ?? false,
           coat_cuatroalbo:  animal.coat_cuatroalbo  ?? false,
