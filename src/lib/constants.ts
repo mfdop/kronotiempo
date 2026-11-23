@@ -56,7 +56,8 @@ export const COAT_BASES = [
 export const COAT_PATTERNS = [
   { value: 'lisa',      label: 'Lisa'      },
   { value: 'pio',       label: 'Pío'       },
-  { value: 'appaloosa', label: 'Appaloosa' },
+  { value: 'appaloosa', label: 'Appaloosa manta'    },
+  { value: 'leopardo',  label: 'Appaloosa leopardo' },
 ] as const
 
 // ─── GENETICS LOCI ───────────────────────────────────────────────────────────

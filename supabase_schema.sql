@@ -31,7 +31,7 @@ create table animals (
   chip                 text,
   -- coat
   coat_base            text check (coat_base in ('negro','castano','alazan')),
-  coat_pattern         text default 'lisa' check (coat_pattern in ('lisa','pio','appaloosa')),
+  coat_pattern         text default 'lisa' check (coat_pattern in ('lisa','pio','appaloosa','leopardo')),
   coat_careto          boolean default false,
   coat_cuatroalbo      boolean default false,
   coat_description     text,

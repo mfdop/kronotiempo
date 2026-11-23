@@ -5,7 +5,7 @@ import { useCreateAnimal } from '../hooks/useAnimals'
 import { useAuth } from '../hooks/useAuth'
 import { Field, GranateButton, GhostButton, inputStyle } from '../components/ui'
 import { Azulejo, AzulejoCustomizer } from '../components/horse/Azulejo'
-import type { Animal } from '../types'
+import type { Animal, CoatPattern } from '../types'
 
 const BREEDS = ['Appaloosa','PRE','PRD','Anglo-Árabe','Árabe','Quarter Horse','Paint Horse','Lusitano','Hannoveriano','Otra']
 const SEXES  = [
@@ -20,7 +20,7 @@ const DEFAULT_AZULEJO: {
   azulejo_ink: string
   azulejo_bg: string
   azulejo_spot_ink: string
-  coat_pattern: 'lisa' | 'pio' | 'appaloosa'
+  coat_pattern: CoatPattern
   coat_careto: boolean
   coat_cuatroalbo: boolean
 } = {
@@ -303,7 +303,7 @@ export default function NuevoAnimalPage() {
         open={customizerOpen}
         onClose={() => setCustomizerOpen(false)}
         values={azulejo}
-        onChange={vals => setAzulejo(prev => ({ ...prev, ...vals, coat_pattern: vals.coat_pattern as 'lisa' | 'pio' | 'appaloosa' }))}
+        onChange={vals => setAzulejo(prev => ({ ...prev, ...vals, coat_pattern: vals.coat_pattern as CoatPattern }))}
         animalName={form.name || 'Animal'}
       />
     </div>

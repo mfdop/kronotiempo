@@ -7,6 +7,7 @@ import { DeleteZone, BottomSheet } from '../ui'
 import type { Animal } from '../../types'
 import { format, parseISO, differenceInYears, differenceInMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
+import HorseStage from './HorseStage'
 
 const BREEDS = ['Appaloosa','PRE','PRD','Anglo-Árabe','Árabe','Quarter Horse','Paint Horse','Lusitano','Hannoveriano','Otra']
 const SEXES  = [
@@ -153,6 +154,8 @@ export default function TabInfo({ animal }: { animal: Animal }) {
   return (
     <>
     <div className="p-3 pb-8 space-y-3">
+
+      <HorseStage animal={animal} />
 
       {error && (
         <p className="text-[13px] rounded-xl px-4 py-2.5"

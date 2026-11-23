@@ -20,7 +20,7 @@ export type TaskStatus     = 'pendiente' | 'completada'
 export type TaskOrigin     = 'manual' | 'auto_parto' | 'auto_herrado' | 'auto_vacuna' | 'auto_agua' | 'auto_comida'
 export type ClientTagType  = 'cubricion' | 'vientre' | 'interesado' | 'vendedor'
 export type CoatBase       = 'negro' | 'castano' | 'alazan'
-export type CoatPattern    = 'lisa' | 'pio' | 'appaloosa'
+export type CoatPattern    = 'lisa' | 'pio' | 'appaloosa' | 'leopardo'
 
 // ─── ANIMAL ──────────────────────────────────────────────────────────────────
 export interface Animal {
