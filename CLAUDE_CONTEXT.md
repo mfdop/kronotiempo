@@ -1,4 +1,4 @@
-# KRONOTIEMPO — Contexto completo para Claude Code
+# EL TIEMPO — Contexto completo para Claude Code
 
 ## Qué es este proyecto
 PWA de gestión ganadera para la Yeguada El Tiempo, una ganadería familiar
@@ -175,7 +175,7 @@ Fecha de compra es completamente opcional (no mostrar si no es comprado).
 - Cada tarea: checkbox circular (tap → completeTask), badges prioridad/Auto/📅, borde ámbar izquierdo en tareas auto
 - Auto badge muestra "Auto · Parto|Herrado|Vacuna|Agua|Comida". 📅 badge en tareas manuales con fecha
 - FAB + granate (fijo bottom-20 right-5) → NewTaskSheet con: título, notas, date picker, chips prioridad Baja/Media/Alta
-- Botón "📅 Exportar" en header → ical-generator default import → ICS con tareas de today+week+soon, excluye auto_agua/auto_comida, descarga kronotiempo_semana.ics
+- Botón "📅 Exportar" en header → ical-generator default import → ICS con tareas de today+week+soon, excluye auto_agua/auto_comida, descarga eltiempo_semana.ics
 - ical-generator v10 API: import ical from 'ical-generator'; cal = ical({name}); cal.createEvent({start,end,summary,description}); cal.toString()
 - SQL pendiente: tabla tasks (id, owner_id, title, description, due_date, status, origin, animal_id, priority, completed_at, created_at)
 - SQL pendiente: tabla daily_notes (id, owner_id, date, content, updated_at) + UNIQUE(owner_id, date)

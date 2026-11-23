@@ -1,6 +1,6 @@
 {
-  "name": "Kronotiempo",
-  "short_name": "Kronotiempo",
+  "name": "El Tiempo",
+  "short_name": "El Tiempo",
   "description": "Gestión de la Yeguada El Tiempo",
   "start_url": "/",
   "display": "standalone",

@@ -125,10 +125,10 @@ export default function NotificationsCard() {
 
   const text: Record<string, string> = {
     unsupported: 'Este navegador no admite notificaciones push. En iPhone necesitas iOS 16.4 o superior: abre la app en Safari → Compartir → Añadir a pantalla de inicio y ábrela desde el icono.',
-    'not-installed': 'En iPhone las notificaciones solo funcionan con la app instalada: en Safari pulsa Compartir → Añadir a pantalla de inicio (iOS 16.4+), abre Kronotiempo desde el icono y vuelve aquí.',
+    'not-installed': 'En iPhone las notificaciones solo funcionan con la app instalada: en Safari pulsa Compartir → Añadir a pantalla de inicio (iOS 16.4+), abre El Tiempo desde el icono y vuelve aquí.',
     'no-key': 'Faltan las claves de notificaciones (VITE_VAPID_PUBLIC_KEY) en la configuración de la app. Consulta PUSH_SETUP.md.',
     default: 'Recibe cada mañana un resumen de partos, herrados, vacunas y tareas.',
-    denied: 'Las notificaciones están bloqueadas. En el iPhone: Ajustes → Notificaciones → Kronotiempo → Permitir notificaciones. Luego vuelve aquí.',
+    denied: 'Las notificaciones están bloqueadas. En el iPhone: Ajustes → Notificaciones → El Tiempo → Permitir notificaciones. Luego vuelve aquí.',
     'granted-off': 'Permiso concedido, pero este dispositivo no está suscrito.',
     'granted-on': 'Notificaciones activas en este dispositivo.',
   }

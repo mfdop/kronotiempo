@@ -43,13 +43,13 @@ Settings → Environment Variables: añade `VITE_VAPID_PUBLIC_KEY` con la clave 
 ## 5. iPhone
 
 1. Abre la web en **Safari** (iOS 16.4 o superior) → Compartir → **Añadir a pantalla de inicio**.
-2. Abre Kronotiempo desde el icono nuevo (no desde Safari).
+2. Abre El Tiempo desde el icono nuevo (no desde Safari).
 3. Agenda → tarjeta "Notificaciones" → **Activar notificaciones** → Permitir.
 4. Pulsa **Enviar prueba**: debe llegar "Notificación de prueba".
 
 ## Notas
 
 - Solo se envía el resumen si hay algo pendiente (partos en 14 días, herrados vencidos o en 7 días, vacunas vencidas o en 14 días, tareas manuales de hoy o vencidas). No incluye agua/comida.
-- Si bloqueaste el permiso: Ajustes del iPhone → Notificaciones → Kronotiempo.
+- Si bloqueaste el permiso: Ajustes del iPhone → Notificaciones → El Tiempo.
 - Si desinstalas la app del iPhone, la suscripción caduca y la función la elimina sola en el siguiente envío.
 - Probar el envío diario a mano: `curl -X POST https://<PROJECT_REF>.supabase.co/functions/v1/send-reminders -H "x-cron-secret: <CRON_SECRET>"`.

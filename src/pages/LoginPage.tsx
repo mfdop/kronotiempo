@@ -43,7 +43,7 @@ export default function LoginPage() {
         >
           <img
             src="/logo.png"
-            alt="Kronotiempo"
+            alt="El Tiempo"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         </div>

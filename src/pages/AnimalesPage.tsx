@@ -81,7 +81,7 @@ export default function AnimalesPage() {
         <div className="safe-top" />
         <div className="flex items-center justify-between px-4 pt-2.5 pb-3">
           <div>
-            <h1 className="text-[20px] font-bold text-white tracking-tight">Kronotiempo</h1>
+            <h1 className="text-[20px] font-bold text-white tracking-tight">El Tiempo</h1>
             <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>
               {animals.length} animales
             </p>

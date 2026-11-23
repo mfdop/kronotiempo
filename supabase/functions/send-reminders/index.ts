@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     const { data: subs } = await admin.from('push_subscriptions').select('*').eq('owner_id', data.user.id)
     if (!subs || subs.length === 0) return json({ error: 'Sin suscripciones' }, 404)
     const r = await sendTo(subs as Sub[], {
-      title: 'Kronotiempo', body: 'Notificación de prueba', data: { url: '/agenda' }, tag: 'test',
+      title: 'El Tiempo', body: 'Notificación de prueba', data: { url: '/agenda' }, tag: 'test',
     })
     return json({ mode: 'test', ...r })
   }
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
       if (!text) continue
       totals.notified++
       const r = await sendTo(ownerSubs, {
-        title: 'Kronotiempo · Agenda de hoy', body: text, data: { url: '/agenda' }, tag: 'daily',
+        title: 'El Tiempo · Agenda de hoy', body: text, data: { url: '/agenda' }, tag: 'daily',
       })
       totals.sent += r.sent; totals.removed += r.removed; totals.failed += r.failed
     } catch (e) {

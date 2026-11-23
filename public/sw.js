@@ -1,17 +1,17 @@
-/* Kronotiempo service worker: Web Push only (no caching). */
+/* El Tiempo service worker: Web Push only (no caching). */
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 
 self.addEventListener('push', (event) => {
   let payload = {}
   try { payload = event.data ? event.data.json() : {} } catch { payload = { body: event.data ? event.data.text() : '' } }
-  const title = payload.title || 'Kronotiempo'
+  const title = payload.title || 'El Tiempo'
   event.waitUntil(
     self.registration.showNotification(title, {
       body: payload.body || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      tag: payload.tag || 'kronotiempo',
+      tag: payload.tag || 'eltiempo',
       data: { url: (payload.data && payload.data.url) || payload.url || '/agenda' },
     }),
   )

@@ -54,7 +54,7 @@ function classifyTasks(tasks: Task[]) {
 // ─── ICS EXPORT ──────────────────────────────────────────────────────────────
 
 function exportWeekICS(tasks: Task[]) {
-  const cal = ical({ name: 'Kronotiempo — Agenda' })
+  const cal = ical({ name: 'El Tiempo — Agenda' })
 
   for (const t of tasks) {
     if (!t.due_date || isLegacyWaterFood(t)) continue
@@ -76,7 +76,7 @@ function exportWeekICS(tasks: Task[]) {
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
   a.href     = url
-  a.download = 'kronotiempo_semana.ics'
+  a.download = 'eltiempo_semana.ics'
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
