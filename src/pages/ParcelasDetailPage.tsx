@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format, parseISO, formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -16,6 +16,7 @@ import {
 } from '../hooks/useMeadows'
 import { useAnimalsByMeadow, useAnimals, useUpdateAnimal } from '../hooks/useAnimals'
 import { useMeadows } from '../hooks/useMeadows'
+import { MeadowIcon, MeadowIconPicker, WaterDropIcon, FoodIcon, HorseHeadIcon, normalizeMeadowIcon } from '../components/meadow/MeadowIcon'
 import { MEADOW_COLORS } from '../lib/constants'
 import {
   InnerTabs, ConfirmToast, BottomSheet, LoadingScreen, EmptyState, DeleteZone,
@@ -24,8 +25,6 @@ import { Azulejo } from '../components/horse/Azulejo'
 import type { Animal, ParcelaStatus } from '../types'
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-
-const MEADOW_EMOJIS = ['🌿', '🌾', '🏡', '🌳', '🌱', '🍀', '🏔️', '🌄', '🌊', '⛰️', '🌻', '🌺', '🐄', '🐑', '🌵']
 
 const STATUS_OPTIONS: { value: ParcelaStatus; label: string }[] = [
   { value: 'ocupada',     label: 'Ocupada' },
@@ -49,7 +48,7 @@ function EditMeadowSheet({
   const [ref, setRef]           = useState(meadow.cadastral_ref ?? '')
   const [status, setStatus]     = useState<ParcelaStatus>(meadow.status)
   const [notes, setNotes]       = useState(meadow.notes ?? '')
-  const [emoji, setEmoji]       = useState(meadow.icon_emoji ?? '🌿')
+  const [emoji, setEmoji]       = useState(normalizeMeadowIcon(meadow.icon_emoji))
   const [colorRgba, setColor]   = useState(meadow.color_rgba ?? MEADOW_COLORS[0].rgba)
   const [hasWater, setHasWater] = useState(meadow.has_water !== false)
 
@@ -76,18 +75,10 @@ function EditMeadowSheet({
   return (
     <BottomSheet open={open} onClose={onClose} title="Editar parcela">
       <div className="space-y-3.5">
-        {/* Emoji */}
+        {/* Icono */}
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: '#A08888' }}>Icono</p>
-          <div className="flex flex-wrap gap-2">
-            {MEADOW_EMOJIS.map(e => (
-              <button key={e} onClick={() => setEmoji(e)}
-                className="w-10 h-10 rounded-xl text-xl flex items-center justify-center"
-                style={{ background: emoji === e ? '#F5E8EC' : '#F7F3EE', border: emoji === e ? '2px solid #7B1F3A' : '1px solid rgba(123,31,58,0.18)' }}>
-                {e}
-              </button>
-            ))}
-          </div>
+          <MeadowIconPicker value={emoji} onChange={setEmoji} />
         </div>
 
         {/* Color */}
@@ -244,7 +235,7 @@ function MoveAnimalSheet({
         <button onClick={() => handleMove(null)}
           className="w-full flex items-center gap-3 p-3 rounded-xl text-left"
           style={{ background: '#FCEAEA', border: '1px solid #8C1F1F33' }}>
-          <span className="text-lg">🚪</span>
+          <MeadowIcon name="cercado" size={26} />
           <span className="text-[14px] font-semibold" style={{ color: '#8C1F1F' }}>Quitar de la parcela</span>
         </button>
 
@@ -252,9 +243,9 @@ function MoveAnimalSheet({
           <button key={m.id} onClick={() => handleMove(m.id)}
             className="w-full flex items-center gap-3 p-3 rounded-xl text-left"
             style={{ background: '#F7F3EE', border: '1px solid rgba(123,31,58,0.14)' }}>
-            <span className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                   style={{ background: m.color_rgba ?? 'rgba(123,31,58,0.14)' }}>
-              {m.icon_emoji ?? '🌿'}
+              <MeadowIcon name={m.icon_emoji} size={28} />
             </span>
             <span className="text-[14px] font-semibold" style={{ color: '#1C1010' }}>{m.name}</span>
           </button>
@@ -290,7 +281,7 @@ function LogRow({ loggedAt }: { loggedAt: string }) {
 function BigCounter({
   icon, label, daysSince, status, onClick, hint,
 }: {
-  icon: string; label: string
+  icon: ReactNode; label: string
   daysSince: number | null; status: 'ok' | 'warn' | 'due' | 'neutral'
   onClick: () => void
   hint?: string
@@ -300,7 +291,7 @@ function BigCounter({
     <button onClick={onClick}
       className="flex-1 rounded-2xl p-4 flex flex-col items-center"
       style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-      <span style={{ fontSize: 26, marginBottom: 6 }}>{icon}</span>
+      <span style={{ marginBottom: 6 }}>{icon}</span>
       <span className="text-[26px] font-bold" style={{ color: col }}>
         {daysSince !== null ? `${daysSince}d` : '—'}
       </span>
@@ -354,9 +345,9 @@ export default function ParcelasDetailPage() {
           ‹ Parcelas
         </button>
         <div className="flex items-end gap-3.5 px-4 pb-4">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
                style={{ background: color, border: '2px solid rgba(255,255,255,0.3)' }}>
-            {meadow.icon_emoji ?? '🌿'}
+            <MeadowIcon name={meadow.icon_emoji} size={44} />
           </div>
           <div className="flex-1">
             <h1 className="text-[22px] font-bold text-white tracking-tight">{meadow.name}</h1>
@@ -383,8 +374,8 @@ export default function ParcelasDetailPage() {
           <div className="p-4 space-y-4 pb-8">
             {/* Big counters */}
             <div className="flex gap-3">
-              {hasWater && <BigCounter icon="💧" label="Agua" daysSince={wSt.daysSince} status={wSt.status} onClick={() => setConfirmW(true)} />}
-              <BigCounter icon="🌿" label="Comida" daysSince={fSt.daysSince} status={fSt.status} hint={foodHint} onClick={() => setConfirmF(true)} />
+              {hasWater && <BigCounter icon={<WaterDropIcon size={34} />} label="Agua" daysSince={wSt.daysSince} status={wSt.status} onClick={() => setConfirmW(true)} />}
+              <BigCounter icon={<FoodIcon size={34} />} label="Comida" daysSince={fSt.daysSince} status={fSt.status} hint={foodHint} onClick={() => setConfirmF(true)} />
             </div>
 
             {/* Info card */}
@@ -414,7 +405,7 @@ export default function ParcelasDetailPage() {
             {/* Water history */}
             {hasWater && <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
               <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
-                <span>💧</span>
+                <WaterDropIcon size={20} />
                 <p className="text-[11px] font-bold uppercase tracking-wider flex-1" style={{ color: '#A08888' }}>Historial agua</p>
                 <span className="text-[11px]" style={{ color: '#A08888' }}>Media: {wSt.average}d</span>
               </div>
@@ -429,7 +420,7 @@ export default function ParcelasDetailPage() {
             {/* Food history */}
             <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
               <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.09)' }}>
-                <span>🌿</span>
+                <FoodIcon size={20} />
                 <p className="text-[11px] font-bold uppercase tracking-wider flex-1" style={{ color: '#A08888' }}>Historial comida</p>
                 <span className="text-[11px]" style={{ color: '#A08888' }}>
                   {foodHint ?? `Media: ${fSt.average}d`}
@@ -466,7 +457,7 @@ export default function ParcelasDetailPage() {
             </div>
 
             {!animals || animals.length === 0 ? (
-              <EmptyState icon="🐴" title="Sin animales asignados"
+              <EmptyState icon={<HorseHeadIcon size={52} />} title="Sin animales asignados"
                           subtitle="Usa + Añadir para mover un animal a esta parcela" />
             ) : (
               <div className="mx-3 rounded-2xl overflow-hidden"

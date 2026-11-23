@@ -11,12 +11,11 @@ import {
   type MeadowWithLogs,
 } from '../hooks/useMeadows'
 import { BottomSheet, ConfirmToast, LoadingScreen, EmptyState } from '../components/ui'
+import { MeadowIcon, MeadowIconPicker, WaterDropIcon, FoodIcon, HorseHeadIcon } from '../components/meadow/MeadowIcon'
 import { MEADOW_COLORS } from '../lib/constants'
 import type { ParcelaStatus } from '../types'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
-
-const MEADOW_EMOJIS = ['🌿', '🌾', '🏡', '🌳', '🌱', '🍀', '🏔️', '🌄', '🌊', '⛰️', '🌻', '🌺', '🐄', '🐑', '🌵']
 
 const STATUS_OPTIONS: { value: ParcelaStatus; label: string }[] = [
   { value: 'ocupada',     label: 'Ocupada' },
@@ -35,7 +34,7 @@ function NewMeadowSheet({ open, onClose }: { open: boolean; onClose: () => void 
   const [ref,      setRef]     = useState('')
   const [status,   setStatus]  = useState<ParcelaStatus>('libre')
   const [notes,    setNotes]   = useState('')
-  const [emoji,    setEmoji]   = useState('🌿')
+  const [emoji,    setEmoji]   = useState('pradera')
   const [color,    setColor]   = useState<string>(MEADOW_COLORS[0].rgba)
   const [hasWater, setHasWater] = useState(true)
 
@@ -43,7 +42,7 @@ function NewMeadowSheet({ open, onClose }: { open: boolean; onClose: () => void 
   useEffect(() => {
     if (open) {
       setName(''); setSurface(''); setRef(''); setStatus('libre')
-      setNotes(''); setEmoji('🌿'); setColor(MEADOW_COLORS[0].rgba); setHasWater(true)
+      setNotes(''); setEmoji('pradera'); setColor(MEADOW_COLORS[0].rgba); setHasWater(true)
     }
   }, [open])
 
@@ -70,21 +69,10 @@ function NewMeadowSheet({ open, onClose }: { open: boolean; onClose: () => void 
   return (
     <BottomSheet open={open} onClose={onClose} title="Nueva parcela">
       <div className="space-y-3.5">
-        {/* Emoji */}
+        {/* Icono */}
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: '#A08888' }}>Icono</p>
-          <div className="flex flex-wrap gap-2">
-            {MEADOW_EMOJIS.map(e => (
-              <button key={e} onClick={() => setEmoji(e)}
-                className="w-10 h-10 rounded-xl text-xl flex items-center justify-center"
-                style={{
-                  background: emoji === e ? '#F5E8EC' : '#F7F3EE',
-                  border: emoji === e ? '2px solid #7B1F3A' : '1px solid rgba(123,31,58,0.18)',
-                }}>
-                {e}
-              </button>
-            ))}
-          </div>
+          <MeadowIconPicker value={emoji} onChange={setEmoji} />
         </div>
 
         {/* Color */}
@@ -202,11 +190,11 @@ function MeadowCard({
       {/* Color band */}
       <div style={{ height: 6, background: color }} />
 
-      {/* Top — name + emoji */}
+      {/* Top — name + icon */}
       <div className="flex items-center gap-3 px-3.5 pt-3 pb-2.5 cursor-pointer" onClick={onClick}>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
              style={{ background: color }}>
-          {meadow.icon_emoji ?? '🌿'}
+          <MeadowIcon name={meadow.icon_emoji} size={30} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[16px] font-bold truncate" style={{ color: '#1C1010' }}>{meadow.name}</p>
@@ -222,7 +210,7 @@ function MeadowCard({
         {/* Animals counter */}
         <div className="flex flex-col items-center py-2.5 cursor-pointer" onClick={onClick}
              style={{ borderRight: '1px solid rgba(123,31,58,0.09)' }}>
-          <span style={{ fontSize: 17, marginBottom: 3 }}>🐴</span>
+          <span style={{ marginBottom: 3 }}><HorseHeadIcon size={20} /></span>
           <span className="text-[14px] font-bold" style={{ color: '#A08888' }}>{count}</span>
           <span className="text-[9px] font-medium mt-0.5" style={{ color: '#6B5555' }}>Animales</span>
         </div>
@@ -232,7 +220,7 @@ function MeadowCard({
         <button className="flex flex-col items-center py-2.5"
                 style={{ borderRight: '1px solid rgba(123,31,58,0.09)' }}
                 onClick={e => { e.stopPropagation(); onWater() }}>
-          <span style={{ fontSize: 17, marginBottom: 3 }}>💧</span>
+          <span style={{ marginBottom: 3 }}><WaterDropIcon size={20} /></span>
           <span className="text-[14px] font-bold" style={{ color: statusTextColor(waterSt.status) }}>
             {waterSt.daysSince !== null ? `${waterSt.daysSince}d` : '—'}
           </span>
@@ -243,7 +231,7 @@ function MeadowCard({
         {/* Food counter */}
         <button className="flex flex-col items-center py-2.5"
                 onClick={e => { e.stopPropagation(); onFood() }}>
-          <span style={{ fontSize: 17, marginBottom: 3 }}>🌿</span>
+          <span style={{ marginBottom: 3 }}><FoodIcon size={20} /></span>
           <span className="text-[14px] font-bold" style={{ color: statusTextColor(foodSt.status) }}>
             {foodSt.daysSince !== null ? `${foodSt.daysSince}d` : '—'}
           </span>
@@ -301,7 +289,7 @@ export default function ParcelasPage() {
       {/* List */}
       <div className="flex-1 overflow-y-auto scrollbar-hide pt-3 pb-4" style={{ background: '#F7F3EE' }}>
         {!meadows || meadows.length === 0 ? (
-          <EmptyState icon="🌿" title="Sin parcelas registradas"
+          <EmptyState icon={<MeadowIcon name="pradera" size={56} />} title="Sin parcelas registradas"
                       subtitle="Pulsa «+ Nueva» para añadir tu primera parcela"
                       action={{ label: '+ Nueva parcela', onClick: () => setSheetOpen(true) }} />
         ) : (
