@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useAutoTasks } from './hooks/useTasks'
 import AppLayout from './components/layout/AppLayout'
 import { LoadingScreen } from './components/ui'
+import { HorseRunner } from './components/horse/HorseRunner'
 
 // ── Eager (critical path) ──────────────────────────────────────────────────
 import LoginPage    from './pages/LoginPage'
@@ -36,7 +37,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div style={{ minHeight:'100vh', display:'flex', alignItems:'center',
                     justifyContent:'center', background:'#5C1629' }}>
-        <div style={{ fontSize:48 }}>🐴</div>
+        <HorseRunner size={96} light />
       </div>
     )
   }

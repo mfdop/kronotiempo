@@ -1,3 +1,4 @@
+import { HorseRunner } from '../horse/HorseRunner'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 
@@ -398,7 +399,7 @@ export const inputStyle: React.CSSProperties = {
 export function LoadingScreen() {
   return (
     <div className="h-full flex items-center justify-center">
-      <div className="text-4xl animate-pulse">🐴</div>
+      <HorseRunner size={80} />
     </div>
   )
 }

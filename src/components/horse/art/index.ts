@@ -52,3 +52,9 @@ export function usePoseArts(enabled: boolean): boolean {
   }, [enabled, ready])
   return ready
 }
+
+/** Load a single pose (e.g. the loading indicator only needs the gallop). */
+export function loadPose(name: PoseName): Promise<PoseArt> {
+  const c = cache[name]
+  return c ? Promise.resolve(c) : loaders[name]().then(m => (cache[name] = m.default))
+}

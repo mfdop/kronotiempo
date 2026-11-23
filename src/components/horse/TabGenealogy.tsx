@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAnimals, useUpdateAnimal } from '../../hooks/useAnimals'
 import { Azulejo } from './Azulejo'
+import { HorseFigure } from './HorseFigure'
+import type { HorseCoat } from './horseCoat'
 import { BottomSheet, EmptyState } from '../ui'
 import type { Animal } from '../../types'
 import { differenceInYears, parseISO } from 'date-fns'
@@ -137,14 +139,27 @@ function AnimalPicker({ open, onClose, onSelect, excludeId, title, sexFilter }: 
   )
 }
 
-function TreeNode({ label, animal, extName, isSubject = false, onEdit, onNav }: {
+const GREY_COAT: HorseCoat = { ink: '#C9C2BC', spotInk: '#A9A29C', maneInk: '#A9A29C', pattern: 'lisa', careto: false, cuatroalbo: false }
+
+/** Neutral placeholder for relatives that are only a name (not in the app). */
+function ExternalTile({ size }: { size: number }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.25), background: '#F3F0EC', flexShrink: 0,
+                  border: '2px dashed rgba(123,31,58,0.22)', position: 'relative', overflow: 'hidden' }}>
+      <HorseFigure coat={GREY_COAT} icon ground="none" viewBox="-6 14 236 286"
+                   style={{ position: 'absolute', inset: '6%', width: '88%', height: '88%', opacity: 0.6 }} />
+    </div>
+  )
+}
+
+function TreeNode({ label, animal, extName, isSubject = false, onEdit, onNav, iconSize = 40 }: {
   label: string; animal?: Animal; extName?: string
-  isSubject?: boolean; onEdit?: () => void; onNav?: () => void
+  isSubject?: boolean; onEdit?: () => void; onNav?: () => void; iconSize?: number
 }) {
   const onClick = isSubject ? undefined : (onNav ?? onEdit)
   return (
     <button onClick={onClick} disabled={!onClick}
-            className="flex-1 rounded-2xl p-2.5 text-left min-w-0"
+            className="flex-1 rounded-2xl p-2 text-center min-w-0 flex flex-col items-center"
             style={{
               background: isSubject ? '#F5E8EC' : '#fff',
               border: `${isSubject ? 2 : 1}px solid ${isSubject ? '#7B1F3A' : 'rgba(123,31,58,0.15)'}`,
@@ -153,13 +168,15 @@ function TreeNode({ label, animal, extName, isSubject = false, onEdit, onNav }: 
          style={{ color: isSubject ? '#7B1F3A' : '#A08888' }}>{label}</p>
       {animal ? (
         <>
-          <p className="text-[11px] font-bold truncate" style={{ color: isSubject ? '#7B1F3A' : '#1C1010' }}>{animal.name}</p>
+          <Azulejo animal={animal} size={iconSize} borderRadius={Math.round(iconSize * 0.25)} custody={animal.status === 'custodia'} />
+          <p className="text-[11px] font-bold truncate w-full mt-1" style={{ color: isSubject ? '#7B1F3A' : '#1C1010' }}>{animal.name}</p>
           <p className="text-[9px] truncate" style={{ color: '#6B5555' }}>{[animal.breed, ageStr(animal.birth_date)].filter(Boolean).join(' · ')}</p>
           {onNav && <p className="text-[9px] font-semibold mt-0.5" style={{ color: '#7B1F3A' }}>Ver ›</p>}
         </>
       ) : extName ? (
         <>
-          <p className="text-[11px] font-bold truncate" style={{ color: '#1C1010' }}>{extName}</p>
+          <ExternalTile size={iconSize} />
+          <p className="text-[11px] font-bold truncate w-full mt-1" style={{ color: '#1C1010' }}>{extName}</p>
           <p className="text-[9px]" style={{ color: '#A08888' }}>Externo</p>
           {onEdit && <p className="text-[9px] font-semibold mt-0.5" style={{ color: '#7B1F3A' }}>Cambiar ›</p>}
         </>
@@ -319,11 +336,11 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
 
         {/* Parents */}
         <div className="flex gap-2">
-          <TreeNode label="Padre (sire)" animal={sire}
+          <TreeNode label="Padre (sire)" animal={sire} iconSize={52}
                     extName={animal.sire_external_name ?? undefined}
                     onEdit={() => setPicker('sire')}
                     onNav={sire ? () => navigate(`/animales/${sire.id}`) : undefined} />
-          <TreeNode label="Madre (dam)"  animal={dam}
+          <TreeNode label="Madre (dam)"  animal={dam} iconSize={52}
                     extName={animal.dam_external_name ?? undefined}
                     onEdit={() => setPicker('dam')}
                     onNav={dam ? () => navigate(`/animales/${dam.id}`) : undefined} />
@@ -346,7 +363,7 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
           <div className="w-px" style={{ background: '#7B1F3A' }} />
         </div>
         <div className="flex px-8">
-          <TreeNode label="Este animal" animal={animal} isSubject />
+          <TreeNode label="Este animal" animal={animal} isSubject iconSize={56} />
         </div>
       </div>
 
@@ -384,7 +401,10 @@ export default function TabGenealogy({ animal }: { animal: Animal }) {
                     return (
                       <button key={side} onClick={onClick} disabled={!onClick}
                               className="w-full flex items-center gap-2 py-1.5 text-left">
-                        <span className="text-[11px] w-[70px] shrink-0" style={{ color: '#A08888' }}>
+                        {ggp.animal
+                          ? <Azulejo animal={ggp.animal} size={36} borderRadius={9} />
+                          : name ? <ExternalTile size={36} /> : null}
+                        <span className="text-[11px] w-[62px] shrink-0" style={{ color: '#A08888' }}>
                           {side === 's' ? 'Bisabuelo' : 'Bisabuela'}
                         </span>
                         <span className="flex-1 min-w-0 text-[13px] truncate"

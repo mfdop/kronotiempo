@@ -50,6 +50,59 @@ function Label({ children }: { children: React.ReactNode }) {
   )
 }
 
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>
+    </svg>
+  )
+}
+
+/** Text block editable on its own (pencil -> textarea -> Guardar), saved with useUpdateAnimal. */
+function InlineText({ value, field, animalId, placeholder, empty, rows = 3, tone, onError }: {
+  value: string | null | undefined; field: 'description' | 'private_notes'; animalId: string
+  placeholder: string; empty: string; rows?: number; tone: string; onError: (m: string | null) => void
+}) {
+  const update = useUpdateAnimal()
+  const [open, setOpen] = useState(false)
+  const [txt, setTxt] = useState('')
+  const [busy, setBusy] = useState(false)
+  const start = () => { setTxt(value ?? ''); setOpen(true); onError(null) }
+  const save = async () => {
+    setBusy(true); onError(null)
+    try {
+      await update.mutateAsync({ id: animalId, [field]: txt.trim() || null } as Partial<Animal> & { id: string })
+      setOpen(false)
+    } catch (e: unknown) { onError(errMsg(e)) }
+    setBusy(false)
+  }
+  if (open) return (
+    <div className="space-y-2">
+      <textarea value={txt} onChange={e => setTxt(e.target.value)} rows={rows} placeholder={placeholder} autoFocus
+                className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none resize-none"
+                style={{ background: '#F7F3EE', border: '1.5px solid rgba(123,31,58,0.22)', color: '#1C1010', lineHeight: 1.5 }} />
+      <div className="flex gap-2 justify-end">
+        <button onClick={() => setOpen(false)} className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
+                style={{ border: '1.5px solid rgba(123,31,58,0.22)', color: '#6B5555' }}>Cancelar</button>
+        <button onClick={save} disabled={busy} className="px-3 py-1.5 rounded-xl text-[12px] font-bold text-white"
+                style={{ background: '#7B1F3A', opacity: busy ? 0.6 : 1 }}>{busy ? 'Guardando...' : 'Guardar'}</button>
+      </div>
+    </div>
+  )
+  return (
+    <div className="flex items-start gap-2">
+      <p className="flex-1 min-w-0 text-[13px] whitespace-pre-wrap break-words"
+         style={{ color: value ? '#1C1010' : '#A08888', fontStyle: value ? 'normal' : 'italic', lineHeight: 1.5 }}>
+        {value || empty}
+      </p>
+      <button onClick={start} aria-label="Editar" className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: '#fff', color: tone, border: `1px solid ${tone}33` }}>
+        <PencilIcon />
+      </button>
+    </div>
+  )
+}
+
 function Section({ title, children, action, compact, className = '' }: { title: string; children: React.ReactNode; action?: React.ReactNode; compact?: boolean; className?: string }) {
   return (
     <div className={'rounded-2xl overflow-hidden min-w-0 ' + className}
@@ -89,8 +142,6 @@ export default function TabInfo({ animal }: { animal: Animal }) {
     purchase_price:  animal.purchase_price?.toString()  ?? '',
     purchase_date:   animal.purchase_date   ?? '',
     purchase_origin: animal.purchase_origin ?? '',
-    description:     animal.description     ?? '',
-    private_notes:   animal.private_notes   ?? '',
     custody_owner_name:  animal.custody_owner_name  ?? '',
     custody_owner_phone: animal.custody_owner_phone ?? '',
     custody_owner_dni:   animal.custody_owner_dni   ?? '',
@@ -115,8 +166,6 @@ export default function TabInfo({ animal }: { animal: Animal }) {
         purchase_price:  f.purchase_price  ? parseFloat(f.purchase_price)  : null,
         purchase_date:   f.purchase_date   || null,
         purchase_origin: f.purchase_origin || null,
-        description:     f.description     || null,
-        private_notes:   f.private_notes   || null,
         custody_owner_name:  f.custody_owner_name  || null,
         custody_owner_phone: f.custody_owner_phone || null,
         custody_owner_dni:   f.custody_owner_dni   || null,
@@ -144,10 +193,10 @@ export default function TabInfo({ animal }: { animal: Animal }) {
       </button>
     </div>
   ) : (
-    <button onClick={() => setEditing(true)}
-            className="px-3 py-1.5 rounded-xl text-[12px] font-bold"
+    <button onClick={() => setEditing(true)} aria-label="Editar"
+            className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
             style={{ background: '#F5E8EC', color: '#7B1F3A' }}>
-      Editar
+      <PencilIcon />
     </button>
   )
 
@@ -348,28 +397,14 @@ export default function TabInfo({ animal }: { animal: Animal }) {
         {/* DESCRIPCIÓN + NOTAS */}
         <div className="col-span-2 md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-2.5">
           <Section title="Descripción" compact>
-            {editing
-              ? <textarea value={f.description} onChange={e => set('description', e.target.value)}
-                          rows={3} placeholder="Descripción del animal..."
-                          className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none resize-none"
-                          style={inp.style} />
-              : <p className="text-[13px]" style={{ color: animal.description ? '#1C1010' : '#A08888',
-                    fontStyle: animal.description ? 'normal' : 'italic', lineHeight: 1.5 }}>
-                  {animal.description || 'Sin descripción'}
-                </p>}
+            <InlineText value={animal.description} field="description" animalId={animal.id}
+                        placeholder="Descripción del animal..." empty="Sin descripción" tone="#7B1F3A" onError={setError} />
           </Section>
 
           <div className="rounded-2xl px-3.5 py-3" style={{ background: '#FAF0EA', border: '1px solid rgba(196,112,74,0.2)' }}>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#C4704A' }}>Notas privadas</p>
-            {editing
-              ? <textarea value={f.private_notes} onChange={e => set('private_notes', e.target.value)}
-                          rows={3} placeholder="Solo visibles para ti..."
-                          className="w-full bg-transparent text-[13px] outline-none resize-none"
-                          style={{ color: '#1C1010', lineHeight: 1.5 }} />
-              : <p className="text-[13px]" style={{ color: animal.private_notes ? '#1C1010' : '#A08888',
-                    fontStyle: animal.private_notes ? 'normal' : 'italic', lineHeight: 1.5 }}>
-                  {animal.private_notes || 'Sin notas'}
-                </p>}
+            <InlineText value={animal.private_notes} field="private_notes" animalId={animal.id}
+                        placeholder="Solo visibles para ti..." empty="Sin notas" tone="#C4704A" onError={setError} />
           </div>
         </div>
       </div>
