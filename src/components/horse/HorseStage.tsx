@@ -13,6 +13,8 @@ import { HORSE_ANIMATIONS, type HorseAnimation } from './horseAnimations'
 // viewBox of the stage figure: room above for rearing, sideways for galloping
 const VB = '-44 -34 316 336'
 
+const HINT_CSS = '.hz-hint{animation:hz-hint 2.4s ease-in-out infinite}@keyframes hz-hint{0%,100%{opacity:.55}50%{opacity:1}}@media (prefers-reduced-motion: reduce){.hz-hint{animation:none}}'
+
 function shuffled<T>(arr: T[]) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -63,6 +65,7 @@ export default function HorseStage({ animal }: { animal: Animal }) {
            background: 'radial-gradient(120% 90% at 50% 20%, #FFFFFF 0%, #FBF7F0 55%, #F1EADF 100%)',
            border: '1px solid rgba(123,31,58,0.11)',
          }}>
+      <style>{HINT_CSS}</style>
       {/* labels */}
       <div className="absolute left-3 top-2.5 z-10 flex items-center gap-1.5">
         <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${current ? '' : 'hz-hint'}`}
