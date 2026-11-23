@@ -157,13 +157,14 @@ function Group({ g, art, coat, pal, uid, icon, angle, idle }: {
   const cid = `${uid}-${g.id}`
   const seeds = art.spots[g.id]
   const pat = coat.pattern
-  const showSpots = !!seeds?.length && (pat === 'leopardo' || pat === 'appaloosa')
+  // appaloosa (manta) shows spots only inside its blanket
+  const showSpots = !!seeds?.length && (pat === 'leopardo' || (pat === 'appaloosa' && !!M.manta))
   const sp = showSpots ? spotPaths(seeds!, g.id.length + art.name.length * 3) : null
   const pio = pat === 'pio' && g.id === 'body' && art.pio.length ? pioPath(art.pio) : ''
   const manta = pat === 'appaloosa' ? M.manta : undefined
   const blaze = coat.careto ? M.blaze : undefined
   const socks = coat.cuatroalbo ? M.socks : undefined
-  const patterned = !!(sp || pio || blaze || socks)
+  const patterned = !!(sp || pio)
 
   const spotEls = sp && (
     <>
@@ -185,8 +186,6 @@ function Group({ g, art, coat, pal, uid, icon, angle, idle }: {
         <g clipPath={`url(#${cid})`}>
           {pio && <path d={pio} fill={pal.white} fillRule="nonzero" />}
           {manta ? <><path d={manta} fill={pal.white} /><g clipPath={`url(#${cid}m)`}>{spotEls}</g></> : spotEls}
-          {blaze && <path d={blaze} fill={pal.white} />}
-          {socks && <path d={socks} fill={pal.white} />}
         </g>
       )}
       {L.hi && <path d={L.hi} fill="#FFFFFF" opacity={pal.hiOp} />}
@@ -195,6 +194,9 @@ function Group({ g, art, coat, pal, uid, icon, angle, idle }: {
       {L.hairD && <path d={L.hairD} fill={pal.hairD} />}
       {L.hairL && <path d={L.hairL} fill={pal.hairL} />}
       {L.hairLL && <path d={L.hairLL} fill={pal.hairLL} />}
+      {/* white markings sit on top of the dark face / leg points */}
+      {blaze && <path d={blaze} fill={pal.white} />}
+      {socks && <path d={socks} fill={pal.white} />}
       {L.hoof && <path d={L.hoof} fill={pal.hoof} />}
       {L.hoofL && <path d={L.hoofL} fill={pal.hoofL} />}
       {icon && <path d={L.base} fill="none" stroke={pal.line} strokeWidth={26} strokeLinejoin="round" />}
@@ -229,6 +231,12 @@ export function ArtView({ art, coat, uid, icon = false, rot, idle = false }: Art
       {groups.map(g => (
         <Group key={g.id} g={g} art={art} coat={coat} pal={pal} uid={uid} icon={icon} angle={rot?.[g.id] ?? 0} idle={idle} />
       ))}
+      {eye && !icon && (
+        <g fill="#FFFFFF">
+          <circle cx={eye.c[0] + eye.r * 0.3} cy={eye.c[1] - eye.r * 0.28} r={eye.r * 0.3} />
+          <circle cx={eye.c[0] - eye.r * 0.3} cy={eye.c[1] + eye.r * 0.3} r={eye.r * 0.13} opacity={0.8} />
+        </g>
+      )}
       {eye && idle && (
         // blink: an eyelid that drops over the eye for a moment
         <g transform={`translate(${eye.c[0]} ${eye.c[1] - eye.r * 1.25})`}>
