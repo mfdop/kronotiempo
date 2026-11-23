@@ -9,6 +9,6 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!sw\.js|manifest\.json|icon-.*\.png|favicon\.svg|assets/).*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
