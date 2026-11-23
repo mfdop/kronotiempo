@@ -406,7 +406,7 @@ export function LoadingScreen() {
 
 // ─── EMPTY STATE ──────────────────────────────────────────────────────────────
 interface EmptyStateProps {
-  icon?: string
+  icon?: ReactNode
   title: string
   subtitle?: string
   action?: { label: string; onClick: () => void }

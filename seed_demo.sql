@@ -14,9 +14,9 @@ begin
   if uid is null then raise exception 'Create a user first (Authentication > Users)'; end if;
 
   -- Parcelas
-  insert into meadows (owner_id,name,surface_ha,status,icon_emoji,notes) values (uid,'Dehesa Norte',4.5,'ocupada','🌳','[DEMO]') returning id into m_norte;
-  insert into meadows (owner_id,name,surface_ha,status,icon_emoji,notes) values (uid,'Prado del Río',2.0,'ocupada','🌿','[DEMO]') returning id into m_rio;
-  insert into meadows (owner_id,name,surface_ha,status,icon_emoji,notes) values (uid,'Cercado Potros',1.2,'descanso','🐎','[DEMO]') returning id into m_potros;
+  insert into meadows (owner_id,name,surface_ha,status,icon_emoji,notes) values (uid,'Dehesa Norte',4.5,'ocupada','arbol','[DEMO]') returning id into m_norte;
+  insert into meadows (owner_id,name,surface_ha,status,icon_emoji,notes) values (uid,'Prado del Río',2.0,'ocupada','pradera','[DEMO]') returning id into m_rio;
+  insert into meadows (owner_id,name,surface_ha,status,icon_emoji,notes) values (uid,'Cercado Potros',1.2,'descanso','cercado','[DEMO]') returning id into m_potros;
 
   -- Clientes
   insert into clients (owner_id,name,phone,instagram,city,stable_name,notes) values (uid,'Carlos Méndez','600111222','carlos_mendez','Sevilla','Yeguada Los Olivos','[DEMO]') returning id into c1;

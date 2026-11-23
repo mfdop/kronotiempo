@@ -85,7 +85,7 @@ create table meadows (
   cadastral_ref  text,
   status         text not null default 'ocupada'
                    check (status in ('ocupada','libre','descanso','tratamiento')),
-  icon_emoji     text default '🌿',
+  icon_emoji     text default 'pradera',
   color_rgba     text default 'rgba(46,107,62,0.18)',
   has_water      boolean not null default true,
   notes          text,
