@@ -1,27 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAnimals } from '../hooks/useAnimals'
-import { Azulejo } from '../components/horse/Azulejo'
-import { Badge, EmptyState, LoadingScreen } from '../components/ui'
-import type { Animal, AnimalSex } from '../types'
-import { SEX_LABELS } from '../lib/constants'
-import { differenceInMonths, differenceInYears, parseISO } from 'date-fns'
-
-function ageLabel(birthDate: string | undefined): string {
-  if (!birthDate) return ''
-  const d = parseISO(birthDate)
-  const years = differenceInYears(new Date(), d)
-  if (years >= 2) return `${years} años`
-  const months = differenceInMonths(new Date(), d)
-  return `${months} meses`
-}
-
-function sexBadgeVariant(sex: AnimalSex) {
-  if (sex === 'semental') return 'blue' as const
-  if (sex === 'yegua') return 'granate' as const
-  if (sex === 'potro' || sex === 'potra') return 'green' as const
-  return 'neutral' as const
-}
+import { HorseFigure } from '../components/horse/HorseFigure'
+import { coatFromAnimal } from '../components/horse/horseCoat'
+import { EmptyState, LoadingScreen } from '../components/ui'
+import type { Animal } from '../types'
+import { differenceInMonths, parseISO } from 'date-fns'
 
 const FILTER_OPTIONS = [
   { id: 'all',      label: 'Todos' },
@@ -169,40 +153,48 @@ function Group({ title, animals, onPress }: { title: string; animals: Animal[]; 
       <p className="text-[11px] font-bold uppercase tracking-wider px-4 pt-3.5 pb-1.5" style={{ color: '#A08888' }}>
         {title}
       </p>
-      <div className="mx-3 rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-        {animals.map((a, i) => (
-          <AnimalCell key={a.id} animal={a} isLast={i === animals.length - 1} onPress={() => onPress(a.id)} />
+      <div className="px-3 grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+        {animals.map(a => (
+          <AnimalCard key={a.id} animal={a} onPress={() => onPress(a.id)} />
         ))}
       </div>
     </>
   )
 }
 
-function AnimalCell({ animal, isLast, onPress }: { animal: Animal; isLast: boolean; onPress: () => void }) {
+// HorseFigure with live=false (default) runs no rAF clock and no SMIL idle loops.
+// content-visibility lets the browser skip layout/paint of off-screen cards.
+const AnimalCard = memo(function AnimalCard({ animal, onPress }: { animal: Animal; onPress: () => void }) {
+  const bg = animal.azulejo_bg ?? '#F0E4D4'
+  const coat = useMemo(() => coatFromAnimal(animal), [animal])
+  const custody = animal.status === 'custodia'
+  const sold = animal.status === 'vendido'
   return (
     <button
       onClick={onPress}
-      className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left active:bg-[#F5E8EC]"
-      style={{ borderBottom: isLast ? 'none' : '1px solid rgba(123,31,58,0.11)' }}
+      className="text-left active:scale-[0.97] transition-transform"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 190px' } as React.CSSProperties}
     >
-      <Azulejo animal={animal} size={52} borderRadius={14} custody={animal.status === 'custodia'} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[15px] font-semibold truncate" style={{ color: '#1C1010' }}>{animal.name}</span>
-          {animal.status === 'custodia' && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0" style={{ background: '#E8F0F8', color: '#1A4F7A' }}>Custodia</span>
-          )}
-        </div>
-        <p className="text-[12px] mt-0.5 truncate" style={{ color: '#6B5555' }}>
-          {[animal.breed, ageLabel(animal.birth_date)].filter(Boolean).join(' · ')}
-        </p>
+      <div className="relative rounded-2xl overflow-hidden"
+           style={{
+             background: `radial-gradient(90% 70% at 50% 40%, rgba(255,255,255,0.35), rgba(255,255,255,0) 70%), ${bg}`,
+             border: custody ? '1.5px dashed rgba(123,31,58,0.55)' : '1px solid rgba(123,31,58,0.12)',
+             aspectRatio: '1 / 0.9',
+           }}>
+        <HorseFigure
+          coat={coat}
+          ground="shadow"
+          viewBox="-14 14 248 292"
+          style={{ position: 'absolute', inset: '8% 6% 6%', width: '88%', height: '86%' }}
+        />
+        {(custody || sold) && (
+          <span className="absolute right-1.5 top-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(255,255,255,0.88)', color: custody ? '#1A4F7A' : '#6B5555' }}>
+            {custody ? 'Custodia' : 'Vendido'}
+          </span>
+        )}
       </div>
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
-        <Badge variant={sexBadgeVariant(animal.sex as AnimalSex)}>{SEX_LABELS[animal.sex] ?? animal.sex}</Badge>
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#A08888" strokeWidth="2" strokeLinecap="round">
-          <path d="M9 18l6-6-6-6"/>
-        </svg>
-      </div>
+      <p className="text-[14px] font-semibold truncate text-center mt-1.5 px-1" style={{ color: '#1C1010' }}>{animal.name}</p>
     </button>
   )
-}
+})
