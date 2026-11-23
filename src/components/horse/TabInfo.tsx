@@ -45,21 +45,21 @@ const inp = {
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5"
+    <p className="text-[9.5px] font-bold uppercase tracking-wider mb-0.5"
        style={{ color: '#A08888' }}>{children}</p>
   )
 }
 
-function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+function Section({ title, children, action, compact, className = '' }: { title: string; children: React.ReactNode; action?: React.ReactNode; compact?: boolean; className?: string }) {
   return (
-    <div className="rounded-2xl overflow-hidden"
+    <div className={'rounded-2xl overflow-hidden min-w-0 ' + className}
          style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-      <div className="flex items-center justify-between px-4 py-3"
+      <div className={'flex items-center justify-between gap-2 ' + (compact ? 'px-3.5 py-2' : 'px-4 py-3')}
            style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
-        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>{title}</p>
+        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>{title}</p>
         {action}
       </div>
-      <div className="p-4 space-y-3">{children}</div>
+      <div className={compact ? 'px-3.5 py-3 space-y-2.5' : 'p-4 space-y-3'}>{children}</div>
     </div>
   )
 }
@@ -151,9 +151,20 @@ export default function TabInfo({ animal }: { animal: Animal }) {
     </button>
   )
 
+  const val = (txt: React.ReactNode) => (
+    <p className="text-[13px] font-semibold leading-tight break-words" style={{ color: '#1C1010' }}>{txt}</p>
+  )
+  const chipBtn = (active: boolean) => ({
+    background: active ? '#7B1F3A' : '#F7F3EE',
+    color: active ? '#fff' : '#6B5555',
+    border: `1.5px solid ${active ? '#7B1F3A' : 'rgba(123,31,58,0.22)'}`,
+  })
+  const linkBtn = 'text-[12px] font-bold px-2.5 py-1.5 rounded-lg'
+  const linkStyle = { background: '#F5E8EC', color: '#7B1F3A' }
+
   return (
     <>
-    <div className="p-3 pb-8 space-y-3">
+    <div className="p-3 pb-8 space-y-2.5">
 
       <HorseStage animal={animal} />
 
@@ -162,215 +173,205 @@ export default function TabInfo({ animal }: { animal: Animal }) {
            style={{ background: '#FCEAEA', color: '#8C1F1F' }}>{error}</p>
       )}
 
-      {/* IDENTIFICACIÓN — edit button in header */}
-      <Section title="Identificación" action={editAction}>
-        <div>
-          <Label>Nombre *</Label>
-          {editing
-            ? <input value={f.name} onChange={e => set('name', e.target.value)} {...inp} />
-            : <p className="text-[14px] font-semibold" style={{ color: '#1C1010' }}>{animal.name}</p>}
-        </div>
-        <div>
-          <Label>Apodo / alias</Label>
-          {editing
-            ? <input value={f.alias} onChange={e => set('alias', e.target.value)} placeholder="Opcional" {...inp} />
-            : <p className="text-[13px]" style={{ color: animal.alias ? '#1C1010' : '#A08888', fontStyle: animal.alias ? 'normal' : 'italic' }}>{animal.alias || 'Sin apodo'}</p>}
-        </div>
-        <div>
-          <Label>Sexo</Label>
-          {editing ? (
-            <div className="flex gap-2 flex-wrap">
-              {SEXES.map(s => (
-                <button key={s.value} onClick={() => set('sex', s.value)}
-                        className="px-3 py-2 rounded-xl text-[12px] font-semibold"
-                        style={{
-                          background: f.sex === s.value ? '#7B1F3A' : '#F7F3EE',
-                          color: f.sex === s.value ? '#fff' : '#6B5555',
-                          border: `1.5px solid ${f.sex === s.value ? '#7B1F3A' : 'rgba(123,31,58,0.22)'}`,
-                        }}>{s.label}</button>
-              ))}
-            </div>
-          ) : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{SEXES.find(s => s.value === animal.sex)?.label ?? animal.sex}</p>}
-        </div>
-        <div>
-          <Label>Raza</Label>
-          {editing
-            ? <select value={f.breed} onChange={e => set('breed', e.target.value)}
-                      className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none appearance-none"
-                      style={inp.style}>{(BREEDS.includes(f.breed as never) || !f.breed ? [...BREEDS] : [f.breed, ...BREEDS]).map(b => <option key={b}>{b}</option>)}</select>
-            : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.breed || '—'}</p>}
-        </div>
-        <div>
-          <Label>Fecha de nacimiento</Label>
-          {editing
-            ? <input type="date" value={f.birth_date} onChange={e => set('birth_date', e.target.value)} {...inp} />
-            : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{ageStr(animal.birth_date) ?? '—'}</p>}
-        </div>
-        <div>
-          <Label>Nº registro / UELN</Label>
-          {editing
-            ? <input value={f.registry_number} onChange={e => set('registry_number', e.target.value)} placeholder="ESP-APP-2020-00001" {...inp} />
-            : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.registry_number || '—'}</p>}
-        </div>
-        <div>
-          <Label>Chip (microchip)</Label>
-          {editing
-            ? <input value={f.chip} onChange={e => set('chip', e.target.value)} placeholder="724 0000 0000000" {...inp} />
-            : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.chip || '—'}</p>}
-        </div>
-        <div>
-          <Label>Estado</Label>
-          {editing ? (
-            <div className="flex gap-2 flex-wrap">
-              {STATUS_OPTS.map(s => (
-                <button key={s.value} onClick={() => set('status', s.value)}
-                        className="px-3 py-2 rounded-xl text-[12px] font-semibold"
-                        style={{
-                          background: f.status === s.value ? '#7B1F3A' : '#F7F3EE',
-                          color: f.status === s.value ? '#fff' : '#6B5555',
-                          border: `1.5px solid ${f.status === s.value ? '#7B1F3A' : 'rgba(123,31,58,0.22)'}`,
-                        }}>{s.label}</button>
-              ))}
-            </div>
-          ) : (
-            <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full inline-block"
-                  style={{ background: '#EAF3EC', color: '#2E6B3E' }}>
-              {isCustodia ? 'En custodia' : (STATUS_OPTS.find(s => s.value === animal.status)?.label ?? animal.status)}
-            </span>
-          )}
-        </div>
-      </Section>
+      {/* DASHBOARD GRID: 2 cols on phone, 3 on wider screens */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 items-start">
 
-      {/* CUSTODIA */}
-      {isCustodia && (
-        <Section title="Propietario (custodia)">
-          <div>
-            <Label>Nombre del propietario</Label>
-            {editing
-              ? <input value={f.custody_owner_name} onChange={e => set('custody_owner_name', e.target.value)} {...inp} />
-              : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.custody_owner_name || '—'}</p>}
-          </div>
-          <div>
-            <Label>Teléfono del propietario</Label>
-            {editing
-              ? <input type="tel" value={f.custody_owner_phone} onChange={e => set('custody_owner_phone', e.target.value)} {...inp} />
-              : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.custody_owner_phone || '—'}</p>}
-          </div>
-          <div>
-            <Label>DNI del propietario</Label>
-            {editing
-              ? <input value={f.custody_owner_dni} onChange={e => set('custody_owner_dni', e.target.value)} {...inp} />
-              : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.custody_owner_dni || '—'}</p>}
+        {/* IDENTIFICACIÓN */}
+        <Section title="Identificación" action={editAction} compact
+                 className={editing ? 'col-span-2' : 'col-span-1'}>
+          <div className={editing ? 'grid grid-cols-2 gap-x-3 gap-y-3' : 'space-y-2'}>
+            <div className={editing ? 'col-span-2' : ''}>
+              <Label>Nombre *</Label>
+              {editing
+                ? <input value={f.name} onChange={e => set('name', e.target.value)} {...inp} />
+                : <p className="text-[15px] font-bold leading-tight" style={{ color: '#7B1F3A' }}>{animal.name}</p>}
+            </div>
+            <div className={editing ? 'col-span-2' : ''}>
+              <Label>Apodo</Label>
+              {editing
+                ? <input value={f.alias} onChange={e => set('alias', e.target.value)} placeholder="Opcional" {...inp} />
+                : <p className="text-[13px] leading-tight" style={{ color: animal.alias ? '#1C1010' : '#A08888', fontStyle: animal.alias ? 'normal' : 'italic' }}>{animal.alias || 'Sin apodo'}</p>}
+            </div>
+            <div className={editing ? 'col-span-2' : ''}>
+              <Label>Sexo</Label>
+              {editing ? (
+                <div className="flex gap-2 flex-wrap">
+                  {SEXES.map(s => (
+                    <button key={s.value} onClick={() => set('sex', s.value)}
+                            className="px-3 py-2 rounded-xl text-[12px] font-semibold"
+                            style={chipBtn(f.sex === s.value)}>{s.label}</button>
+                  ))}
+                </div>
+              ) : val(SEXES.find(s => s.value === animal.sex)?.label ?? animal.sex)}
+            </div>
+            <div>
+              <Label>Raza</Label>
+              {editing
+                ? <select value={f.breed} onChange={e => set('breed', e.target.value)}
+                          className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none appearance-none"
+                          style={inp.style}>{(BREEDS.includes(f.breed as never) || !f.breed ? [...BREEDS] : [f.breed, ...BREEDS]).map(b => <option key={b}>{b}</option>)}</select>
+                : val(animal.breed || '—')}
+            </div>
+            <div>
+              <Label>Nacimiento</Label>
+              {editing
+                ? <input type="date" value={f.birth_date} onChange={e => set('birth_date', e.target.value)} {...inp} />
+                : val(ageStr(animal.birth_date) ?? '—')}
+            </div>
+            <div>
+              <Label>Registro / UELN</Label>
+              {editing
+                ? <input value={f.registry_number} onChange={e => set('registry_number', e.target.value)} placeholder="ESP-APP-2020-00001" {...inp} />
+                : val(animal.registry_number || '—')}
+            </div>
+            <div>
+              <Label>Chip</Label>
+              {editing
+                ? <input value={f.chip} onChange={e => set('chip', e.target.value)} placeholder="724 0000 0000000" {...inp} />
+                : val(animal.chip || '—')}
+            </div>
+            <div className={editing ? 'col-span-2' : ''}>
+              <Label>Estado</Label>
+              {editing ? (
+                <div className="flex gap-2 flex-wrap">
+                  {STATUS_OPTS.map(s => (
+                    <button key={s.value} onClick={() => set('status', s.value)}
+                            className="px-3 py-2 rounded-xl text-[12px] font-semibold"
+                            style={chipBtn(f.status === s.value)}>{s.label}</button>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full inline-block"
+                      style={{ background: '#EAF3EC', color: '#2E6B3E' }}>
+                  {isCustodia ? 'En custodia' : (STATUS_OPTS.find(s => s.value === animal.status)?.label ?? animal.status)}
+                </span>
+              )}
+            </div>
           </div>
         </Section>
-      )}
 
-      {/* UBICACIÓN */}
-      <div className="rounded-2xl overflow-hidden"
-           style={{ background: '#fff', border: '1px solid rgba(123,31,58,0.11)' }}>
-        <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(123,31,58,0.11)' }}>
-          <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Ubicación</p>
-        </div>
-        <div className="flex items-center justify-between px-4 py-3">
-          <span className="text-[13px]" style={{ color: '#6B5555' }}>Pradera actual</span>
-          <span className="text-[12px] font-semibold flex items-center gap-1.5"
-                style={{ color: animal.meadow_id ? '#2E6B3E' : '#A08888' }}>
-            {animal.meadow_id && <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#2E6B3E' }} />}
-            {animal.meadow_id ? (meadow?.name ?? '…') : 'Sin asignar'}
-          </span>
-        </div>
-        <div className="flex items-center justify-between px-4 py-3"
-             style={{ borderTop: '1px solid rgba(123,31,58,0.11)' }}>
-          <span className="text-[13px]" style={{ color: '#6B5555' }}>Ver en parcela</span>
-          {animal.meadow_id ? (
-            <button onClick={() => navigate(`/parcelas/${animal.meadow_id}`)}
-                    className="text-[13px] font-semibold"
-                    style={{ color: '#7B1F3A' }}>Ver ›</button>
-          ) : (
-            <span className="text-[13px]" style={{ color: '#A08888' }}>—</span>
-          )}
-        </div>
-        <div className="flex items-center justify-between px-4 py-3"
-             style={{ borderTop: '1px solid rgba(123,31,58,0.11)' }}>
-          <span className="text-[13px]" style={{ color: '#6B5555' }}>Historial de praderas</span>
-          <button onClick={() => setHistoryOpen(true)}
-                  className="text-[13px] font-semibold"
-                  style={{ color: '#7B1F3A' }}>
-            {history.length > 0 ? `Ver (${history.length}) ›` : 'Ver ›'}
-          </button>
-        </div>
-      </div>
+        {/* COLUMNA DERECHA: Ubicación + Economía */}
+        <div className={`space-y-2.5 min-w-0 ${editing ? 'col-span-2 md:col-span-1' : 'col-span-1'}`}>
 
-      {/* ECONOMÍA */}
-      <Section title="Economía">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl p-3" style={{ background: '#F7F3EE' }}>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#A08888' }}>Coste compra</p>
-            {editing
-              ? <input type="number" value={f.purchase_price} onChange={e => set('purchase_price', e.target.value)}
-                       placeholder="0" className="w-full bg-transparent text-[16px] font-bold outline-none"
-                       style={{ color: '#1C1010' }} />
-              : <p className="text-[16px] font-bold" style={{ color: '#1C1010' }}>
-                  {animal.purchase_price ? `${animal.purchase_price.toLocaleString('es-ES')} €` : '—'}
-                </p>}
-          </div>
-          <div className="rounded-xl p-3" style={{ background: '#EAF3EC' }}>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#A08888' }}>Tasación actual</p>
-            {editing
-              ? <input type="number" value={f.appraisal_value} onChange={e => set('appraisal_value', e.target.value)}
-                       placeholder="0" className="w-full bg-transparent text-[16px] font-bold outline-none"
-                       style={{ color: '#2E6B3E' }} />
-              : <p className="text-[16px] font-bold" style={{ color: '#2E6B3E' }}>
-                  {animal.appraisal_value ? `${animal.appraisal_value.toLocaleString('es-ES')} €` : '—'}
-                </p>}
-          </div>
+          {/* UBICACIÓN */}
+          <Section title="Ubicación" compact>
+            <div>
+              <Label>Pradera actual</Label>
+              <span className="text-[13px] font-semibold flex items-center gap-1.5"
+                    style={{ color: animal.meadow_id ? '#2E6B3E' : '#A08888' }}>
+                {animal.meadow_id && <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: '#2E6B3E' }} />}
+                <span className="leading-tight break-words min-w-0">{animal.meadow_id ? (meadow?.name ?? '…') : 'Sin asignar'}</span>
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {animal.meadow_id && (
+                <button onClick={() => navigate(`/parcelas/${animal.meadow_id}`)}
+                        className={linkBtn} style={linkStyle}>Parcela ›</button>
+              )}
+              <button onClick={() => setHistoryOpen(true)}
+                      className={linkBtn} style={linkStyle}>
+                {history.length > 0 ? `Historial (${history.length}) ›` : 'Historial ›'}
+              </button>
+            </div>
+          </Section>
+
+          {/* ECONOMÍA */}
+          <Section title="Economía" compact>
+            <div className={editing ? 'grid grid-cols-2 gap-2' : 'space-y-2'}>
+              <div className="rounded-xl px-3 py-2" style={{ background: '#F7F3EE' }}>
+                <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Compra</p>
+                {editing
+                  ? <input type="number" value={f.purchase_price} onChange={e => set('purchase_price', e.target.value)}
+                           placeholder="0" className="w-full bg-transparent text-[15px] font-bold outline-none"
+                           style={{ color: '#1C1010' }} />
+                  : <p className="text-[15px] font-bold leading-tight" style={{ color: '#1C1010' }}>
+                      {animal.purchase_price ? `${animal.purchase_price.toLocaleString('es-ES')} €` : '—'}
+                    </p>}
+              </div>
+              <div className="rounded-xl px-3 py-2" style={{ background: '#EAF3EC' }}>
+                <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#A08888' }}>Tasación</p>
+                {editing
+                  ? <input type="number" value={f.appraisal_value} onChange={e => set('appraisal_value', e.target.value)}
+                           placeholder="0" className="w-full bg-transparent text-[15px] font-bold outline-none"
+                           style={{ color: '#2E6B3E' }} />
+                  : <p className="text-[15px] font-bold leading-tight" style={{ color: '#2E6B3E' }}>
+                      {animal.appraisal_value ? `${animal.appraisal_value.toLocaleString('es-ES')} €` : '—'}
+                    </p>}
+              </div>
+            </div>
+            {(editing || animal.purchase_origin || animal.purchase_date) && (
+              <div className={editing ? 'grid grid-cols-2 gap-2' : 'space-y-2'}>
+                <div>
+                  <Label>Origen</Label>
+                  {editing
+                    ? <input value={f.purchase_origin} onChange={e => set('purchase_origin', e.target.value)}
+                             placeholder="Vendedor" {...inp} />
+                    : val(animal.purchase_origin || '—')}
+                </div>
+                <div>
+                  <Label>Fecha compra</Label>
+                  {editing
+                    ? <input type="date" value={f.purchase_date} onChange={e => set('purchase_date', e.target.value)} {...inp} />
+                    : val(animal.purchase_date ? format(parseISO(animal.purchase_date), "d MMM yyyy", { locale: es }) : '—')}
+                </div>
+              </div>
+            )}
+          </Section>
         </div>
-        {(editing || animal.purchase_origin || animal.purchase_date) && (
-          <>
-            <div>
-              <Label>Origen / vendedor</Label>
-              {editing
-                ? <input value={f.purchase_origin} onChange={e => set('purchase_origin', e.target.value)}
-                         placeholder="Yeguada o nombre del vendedor" {...inp} />
-                : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>{animal.purchase_origin || '—'}</p>}
+
+        {/* CUSTODIA */}
+        {isCustodia && (
+          <Section title="Propietario (custodia)" compact className="col-span-2 md:col-span-3">
+            <div className={editing ? 'grid grid-cols-1 sm:grid-cols-3 gap-3' : 'grid grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-2'}>
+              <div className={editing ? '' : 'col-span-2 md:col-span-1'}>
+                <Label>Nombre</Label>
+                {editing
+                  ? <input value={f.custody_owner_name} onChange={e => set('custody_owner_name', e.target.value)} {...inp} />
+                  : val(animal.custody_owner_name || '—')}
+              </div>
+              <div>
+                <Label>Teléfono</Label>
+                {editing
+                  ? <input type="tel" value={f.custody_owner_phone} onChange={e => set('custody_owner_phone', e.target.value)} {...inp} />
+                  : val(animal.custody_owner_phone || '—')}
+              </div>
+              <div>
+                <Label>DNI</Label>
+                {editing
+                  ? <input value={f.custody_owner_dni} onChange={e => set('custody_owner_dni', e.target.value)} {...inp} />
+                  : val(animal.custody_owner_dni || '—')}
+              </div>
             </div>
-            <div>
-              <Label>Fecha de compra</Label>
-              {editing
-                ? <input type="date" value={f.purchase_date} onChange={e => set('purchase_date', e.target.value)} {...inp} />
-                : <p className="text-[13px] font-semibold" style={{ color: '#1C1010' }}>
-                    {animal.purchase_date ? format(parseISO(animal.purchase_date), "d MMM yyyy", { locale: es }) : '—'}
-                  </p>}
-            </div>
-          </>
+          </Section>
         )}
-      </Section>
 
-      {/* DESCRIPCIÓN */}
-      <Section title="Descripción">
-        {editing
-          ? <textarea value={f.description} onChange={e => set('description', e.target.value)}
-                      rows={3} placeholder="Descripción del animal..."
-                      className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none resize-none"
-                      style={inp.style} />
-          : <p className="text-[13px]" style={{ color: animal.description ? '#1C1010' : '#A08888',
-                fontStyle: animal.description ? 'normal' : 'italic', lineHeight: 1.6 }}>
-              {animal.description || 'Sin descripción'}
-            </p>}
-      </Section>
+        {/* DESCRIPCIÓN + NOTAS */}
+        <div className="col-span-2 md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          <Section title="Descripción" compact>
+            {editing
+              ? <textarea value={f.description} onChange={e => set('description', e.target.value)}
+                          rows={3} placeholder="Descripción del animal..."
+                          className="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none resize-none"
+                          style={inp.style} />
+              : <p className="text-[13px]" style={{ color: animal.description ? '#1C1010' : '#A08888',
+                    fontStyle: animal.description ? 'normal' : 'italic', lineHeight: 1.5 }}>
+                  {animal.description || 'Sin descripción'}
+                </p>}
+          </Section>
 
-      {/* NOTAS PRIVADAS */}
-      <div className="rounded-2xl p-4" style={{ background: '#FAF0EA', border: '1px solid rgba(196,112,74,0.2)' }}>
-        <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: '#C4704A' }}>Notas privadas</p>
-        {editing
-          ? <textarea value={f.private_notes} onChange={e => set('private_notes', e.target.value)}
-                      rows={3} placeholder="Solo visibles para ti..."
-                      className="w-full bg-transparent text-[13px] outline-none resize-none"
-                      style={{ color: '#1C1010', lineHeight: 1.6 }} />
-          : <p className="text-[13px]" style={{ color: animal.private_notes ? '#1C1010' : '#A08888',
-                fontStyle: animal.private_notes ? 'normal' : 'italic', lineHeight: 1.6 }}>
-              {animal.private_notes || 'Sin notas'}
-            </p>}
+          <div className="rounded-2xl px-3.5 py-3" style={{ background: '#FAF0EA', border: '1px solid rgba(196,112,74,0.2)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#C4704A' }}>Notas privadas</p>
+            {editing
+              ? <textarea value={f.private_notes} onChange={e => set('private_notes', e.target.value)}
+                          rows={3} placeholder="Solo visibles para ti..."
+                          className="w-full bg-transparent text-[13px] outline-none resize-none"
+                          style={{ color: '#1C1010', lineHeight: 1.5 }} />
+              : <p className="text-[13px]" style={{ color: animal.private_notes ? '#1C1010' : '#A08888',
+                    fontStyle: animal.private_notes ? 'normal' : 'italic', lineHeight: 1.5 }}>
+                  {animal.private_notes || 'Sin notas'}
+                </p>}
+          </div>
+        </div>
       </div>
 
       {/* ZONA DE PELIGRO */}
