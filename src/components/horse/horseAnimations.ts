@@ -63,9 +63,9 @@ export const HORSE_ANIMATIONS: HorseAnimation[] = [
       every: 115,
       list: [
         { dy: 0, rot: 0 },
-        { dy: -3.5, rot: -1.2, parts: { hind: -13, fore: 11, tail: -4 } },
-        { dy: -1.5, rot: 0.8, parts: { hind: -24, fore: 20, tail: 3 } },
-        { dy: -3.5, rot: -0.4, parts: { hind: -12, fore: 9, tail: -2 } },
+        { dy: -3.5, rot: -1.2, parts: { hind: -10, fore: 9, tail: -4 } },
+        { dy: -1.5, rot: 0.8, parts: { hind: -18, fore: 15, tail: 3 } },
+        { dy: -3.5, rot: -0.4, parts: { hind: -9, fore: 7, tail: -2 } },
       ],
     },
     emotes: [{ kind: 'speed', from: 0.1, to: 0.9, at: 'tail' }],
@@ -84,7 +84,7 @@ export const HORSE_ANIMATIONS: HorseAnimation[] = [
     id: 'neigh', label: 'Relincha', ms: 2000, pose: 'stand',
     motion: k => {
       const b = bump(k, 0.05, 0.55) + 0.7 * bump(k, 0.5, 0.95)
-      return { rot: -6 * b, dy: -1.5 * b, pivot: 'hind', parts: { earN: -16 * b, earF: -14 * b, tail: 6 * b, mane: 2.5 * b } }
+      return { rot: -8.5 * b, dy: -2 * b, pivot: 'hind', parts: { earN: -18 * b, earF: -15 * b, tail: 7 * b, mane: 3 * b } }
     },
     emotes: [{ kind: 'neigh', from: 0.12, to: 0.88, at: 'head' }, { kind: 'ticks', from: 0.12, to: 0.88, at: 'back' }],
   },
