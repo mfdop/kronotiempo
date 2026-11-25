@@ -1,7 +1,8 @@
-import { useState, useMemo, memo } from 'react'
+import { useState, useMemo, memo, useCallback, useDeferredValue, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAnimals } from '../hooks/useAnimals'
-import { HorseFigure } from '../components/horse/HorseFigure'
+import { HorseThumb } from '../components/horse/HorseThumb'
+import { loadAllPoses } from '../components/horse/art'
 import { coatFromAnimal } from '../components/horse/horseCoat'
 import { EmptyState, LoadingScreen } from '../components/ui'
 import type { Animal } from '../types'
@@ -18,10 +19,22 @@ type FilterId = typeof FILTER_OPTIONS[number]['id']
 
 export default function AnimalesPage() {
   const navigate = useNavigate()
-  const { data: animals = [], isLoading } = useAnimals()
+  // stable identity so the memoised cards do not re-render on every keystroke
+  const openAnimal = useCallback((id: string) => navigate(`/animales/${id}`), [navigate])
+  const { data: animals = [], isLoading, isError, refetch } = useAnimals()
   const [filter, setFilter]           = useState<FilterId>('all')
   const [search, setSearch]           = useState('')
+  const dSearch = useDeferredValue(search)
   const [breedFilter, setBreedFilter] = useState('')
+
+  // The grid only needs the standing pose; fetch the action poses of the detail
+  // screen in the background once the app is idle.
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (h: number) => void }
+    const go = () => { loadAllPoses().catch(() => {}) }
+    if (w.requestIdleCallback) { const h = w.requestIdleCallback(go, { timeout: 6000 }); return () => w.cancelIdleCallback?.(h) }
+    const h = window.setTimeout(go, 3000); return () => window.clearTimeout(h)
+  }, [])
 
   const breeds = useMemo(() => {
     const set = new Set(animals.map(a => a.breed).filter(Boolean))
@@ -30,8 +43,8 @@ export default function AnimalesPage() {
 
   const filtered = useMemo(() => {
     let list = animals.filter(a => a.status !== 'fallecido')
-    if (search) {
-      const q = search.toLowerCase()
+    if (dSearch) {
+      const q = dSearch.toLowerCase()
       list = list.filter(a =>
         a.name.toLowerCase().includes(q) ||
         (a.alias ?? '').toLowerCase().includes(q) ||
@@ -48,7 +61,7 @@ export default function AnimalesPage() {
       })
     }
     return list
-  }, [animals, filter, search, breedFilter])
+  }, [animals, filter, dSearch, breedFilter])
 
   const grouped = useMemo(() => ({
     sementales: filtered.filter(a => a.sex === 'semental'),
@@ -58,6 +71,12 @@ export default function AnimalesPage() {
   }), [filtered])
 
   if (isLoading) return <LoadingScreen />
+  if (isError && animals.length === 0) {
+    return (
+      <EmptyState title="No se pudieron cargar los animales" subtitle="Revisa la conexión e inténtalo de nuevo"
+        action={{ label: 'Reintentar', onClick: () => { void refetch() } }} />
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -136,10 +155,10 @@ export default function AnimalesPage() {
           />
         ) : (
           <>
-            <Group title={`Sementales · ${grouped.sementales.length}`} animals={grouped.sementales} onPress={id => navigate(`/animales/${id}`)} />
-            <Group title={`Yeguas · ${grouped.yeguas.length}`} animals={grouped.yeguas} onPress={id => navigate(`/animales/${id}`)} />
-            <Group title={`Potros y potras · ${grouped.jovenes.length}`} animals={grouped.jovenes} onPress={id => navigate(`/animales/${id}`)} />
-            <Group title={`Otros · ${grouped.otros.length}`} animals={grouped.otros} onPress={id => navigate(`/animales/${id}`)} />
+            <Group title={`Sementales · ${grouped.sementales.length}`} animals={grouped.sementales} onPress={openAnimal} />
+            <Group title={`Yeguas · ${grouped.yeguas.length}`} animals={grouped.yeguas} onPress={openAnimal} />
+            <Group title={`Potros y potras · ${grouped.jovenes.length}`} animals={grouped.jovenes} onPress={openAnimal} />
+            <Group title={`Otros · ${grouped.otros.length}`} animals={grouped.otros} onPress={openAnimal} />
           </>
         )}
         <div className="h-4" />
@@ -157,7 +176,7 @@ function Group({ title, animals, onPress }: { title: string; animals: Animal[]; 
       </p>
       <div className="px-3 grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
         {animals.map(a => (
-          <AnimalCard key={a.id} animal={a} onPress={() => onPress(a.id)} />
+          <AnimalCard key={a.id} animal={a} onPress={onPress} />
         ))}
       </div>
     </>
@@ -166,14 +185,14 @@ function Group({ title, animals, onPress }: { title: string; animals: Animal[]; 
 
 // HorseFigure with live=false (default) runs no rAF clock and no SMIL idle loops.
 // content-visibility lets the browser skip layout/paint of off-screen cards.
-const AnimalCard = memo(function AnimalCard({ animal, onPress }: { animal: Animal; onPress: () => void }) {
+const AnimalCard = memo(function AnimalCard({ animal, onPress }: { animal: Animal; onPress: (id: string) => void }) {
   const bg = animal.azulejo_bg ?? '#F0E4D4'
   const coat = useMemo(() => coatFromAnimal(animal), [animal])
   const custody = animal.status === 'custodia'
   const sold = animal.status === 'vendido'
   return (
     <button
-      onClick={onPress}
+      onClick={() => onPress(animal.id)}
       className="text-left active:scale-[0.97] transition-transform"
       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 190px' } as React.CSSProperties}
     >
@@ -183,14 +202,7 @@ const AnimalCard = memo(function AnimalCard({ animal, onPress }: { animal: Anima
              border: custody ? '1.5px dashed rgba(123,31,58,0.55)' : '1px solid rgba(123,31,58,0.12)',
              aspectRatio: '1 / 0.9',
            }}>
-        <HorseFigure
-          coat={coat}
-          ground="pedestal"
-          circleInk={animal.azulejo_circle_ink}
-          groundInk={animal.azulejo_ground_ink}
-          viewBox="-14 14 248 292"
-          style={{ position: 'absolute', inset: '8% 6% 6%', width: '88%', height: '86%' }}
-        />
+        <HorseThumb coat={coat} circleInk={animal.azulejo_circle_ink} groundInk={animal.azulejo_ground_ink} />
         {(custody || sold) && (
           <span className="absolute right-1.5 top-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{ background: 'rgba(255,255,255,0.88)', color: custody ? '#1A4F7A' : '#6B5555' }}>

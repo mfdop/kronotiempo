@@ -37,10 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setLoading(false)
-    })
+    // Never leave the app on the splash screen: if getSession rejects or hangs
+    // (storage lock, token refresh without network) fall through to the login.
+    let done = false
+    const finish = (s: Session | null) => { if (!done) { done = true; setSession(s); setLoading(false) } }
+    const guard = window.setTimeout(() => finish(null), 8000)
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => finish(session))
+      .catch(() => finish(null))
+      .finally(() => window.clearTimeout(guard))
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)

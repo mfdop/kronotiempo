@@ -13,7 +13,10 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 function motionAt(ms: number): Motion {
   if (!FRAMES) return {}
-  const ph = ms / FRAMES.every
+  // rAF timestamps are frame-start times and can precede performance.now() taken in
+  // the effect, so ms may be slightly negative: clamp, or the list index goes negative
+  // and the render throws (blank app).
+  const ph = Math.max(0, ms) / FRAMES.every
   const i = Math.floor(ph), f = ph - i, e = f * f * (3 - 2 * f)
   const a = FRAMES.list[i % FRAMES.list.length], b = FRAMES.list[(i + 1) % FRAMES.list.length]
   const parts: Record<string, number> = {}
@@ -39,7 +42,7 @@ export function HorseRunner({ size = 72, light = false }: { size?: number; light
     let raf = 0, last = 0
     const t0 = performance.now()
     const tick = (now: number) => {
-      if (now - last > 40) { last = now; setMs(now - t0) }
+      if (now - last > 40) { last = now; setMs(Math.max(0, now - t0)) }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
