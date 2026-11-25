@@ -8,6 +8,7 @@ import {
 } from '../hooks/useTasks'
 import type { Task } from '../types'
 import NotificationsCard from '../components/NotificationsCard'
+import HeaderLogo from '../components/ui/HeaderLogo'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -455,8 +456,9 @@ export default function AgendaPage() {
   return (
     <div className="flex flex-col h-full">
       {/* ── HEADER ── */}
-      <div className="shrink-0" style={{ background: '#7B1F3A' }}>
+      <div className="shrink-0 relative" style={{ background: '#7B1F3A' }}>
         <div className="safe-top" />
+        <HeaderLogo />
         <div className="px-4 pt-2.5 pb-3 flex items-center justify-between">
           <div>
             <h1 className="text-[20px] font-bold text-white tracking-tight">Agenda</h1>

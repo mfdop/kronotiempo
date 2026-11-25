@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useClientSummaries } from '../hooks/useReproduction'
 import { LoadingScreen, EmptyState } from '../components/ui'
 import type { ClientSummary, ClientTagType } from '../types'
+import HeaderLogo from '../components/ui/HeaderLogo'
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -122,8 +123,9 @@ export default function ClientesPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header + search */}
-      <div className="shrink-0" style={{ background: '#7B1F3A' }}>
+      <div className="shrink-0 relative" style={{ background: '#7B1F3A' }}>
         <div className="safe-top" />
+        <HeaderLogo />
         <div className="px-4 pt-2.5 pb-2">
           <h1 className="text-[20px] font-bold text-white tracking-tight">Clientes</h1>
         </div>

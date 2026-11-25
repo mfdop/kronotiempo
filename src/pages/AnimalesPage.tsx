@@ -6,6 +6,7 @@ import { coatFromAnimal } from '../components/horse/horseCoat'
 import { EmptyState, LoadingScreen } from '../components/ui'
 import type { Animal } from '../types'
 import { differenceInMonths, parseISO } from 'date-fns'
+import HeaderLogo from '../components/ui/HeaderLogo'
 
 const FILTER_OPTIONS = [
   { id: 'all',      label: 'Todos' },
@@ -61,8 +62,9 @@ export default function AnimalesPage() {
   return (
     <div className="flex flex-col h-full">
       {/* NAV */}
-      <div className="shrink-0" style={{ background: '#7B1F3A' }}>
+      <div className="shrink-0 relative" style={{ background: '#7B1F3A' }}>
         <div className="safe-top" />
+        <HeaderLogo />
         <div className="flex items-center justify-between px-4 pt-2.5 pb-3">
           <div>
             <h1 className="text-[20px] font-bold text-white tracking-tight">El Tiempo</h1>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import Logo from '../components/ui/Logo'
 import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
@@ -38,14 +39,9 @@ export default function LoginPage() {
             borderRadius: 24,
             background: '#fff',
             boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
-            overflow: 'hidden',
           }}
         >
-          <img
-            src="/logo.png"
-            alt="El Tiempo"
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
+          <Logo size={64} color="#AB2A3E" />
         </div>
         <p className="text-white/50 text-xs tracking-widest uppercase">
           Yeguada El Tiempo

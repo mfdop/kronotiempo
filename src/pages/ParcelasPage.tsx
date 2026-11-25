@@ -14,6 +14,7 @@ import { BottomSheet, ConfirmToast, LoadingScreen, EmptyState } from '../compone
 import { MeadowIcon, MeadowIconPicker, WaterDropIcon, FoodIcon, HorseHeadIcon } from '../components/meadow/MeadowIcon'
 import { MEADOW_COLORS } from '../lib/constants'
 import type { ParcelaStatus } from '../types'
+import HeaderLogo from '../components/ui/HeaderLogo'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -267,8 +268,9 @@ export default function ParcelasPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="shrink-0" style={{ background: '#7B1F3A' }}>
+      <div className="shrink-0 relative" style={{ background: '#7B1F3A' }}>
         <div className="safe-top" />
+        <HeaderLogo />
         <div className="px-4 py-2.5 pb-3.5 flex items-center justify-between">
           <div>
             <h1 className="text-[20px] font-bold text-white tracking-tight">Parcelas</h1>
