@@ -1,11 +1,13 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useAutoTasks } from './hooks/useTasks'
 import AppLayout from './components/layout/AppLayout'
 import { LoadingScreen } from './components/ui'
 import { HorseRunner } from './components/horse/HorseRunner'
+import ErrorBoundary from './components/ErrorBoundary'
+import ConnectionBanner, { reportQueryError, reportQueryOk } from './components/ConnectionBanner'
 
 // ── Eager (critical path) ──────────────────────────────────────────────────
 import LoginPage    from './pages/LoginPage'
@@ -21,8 +23,26 @@ const ClienteDetailPage  = lazy(() => import('./pages/ClienteDetailPage'))
 const AgendaPage         = lazy(() => import('./pages/AgendaPage'))
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 1000 * 60 * 5, retry: 1 } },
+  queryCache: new QueryCache({ onError: reportQueryError, onSuccess: reportQueryOk }),
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      retry: 2,
+      retryDelay: attempt => Math.min(1000 * 2 ** attempt, 4000),
+    },
+  },
 })
+
+// Each route gets its own error boundary (reset on navigation) + Suspense, so a
+// failing page or chunk never blanks the whole app.
+function Page({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation()
+  return (
+    <ErrorBoundary key={pathname} compact>
+      <Suspense fallback={<LoadingScreen />}>{children}</Suspense>
+    </ErrorBoundary>
+  )
+}
 
 // Runs auto-alert checks once per session as soon as the user is authenticated,
 // regardless of which page they visit first.
@@ -45,6 +65,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <>
       <AutoAlerts />
+      <ConnectionBanner />
       {children}
     </>
   )
@@ -59,27 +80,27 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
               <Route index element={<Navigate to="/animales" replace />} />
-              <Route path="animales"     element={<AnimalesPage />} />
+              <Route path="animales"     element={<Page><AnimalesPage /></Page>} />
               <Route path="animales/nuevo" element={
-                <Suspense fallback={<LoadingScreen />}><NuevoAnimalPage /></Suspense>
+                <Page><NuevoAnimalPage /></Page>
               } />
               <Route path="animales/:id" element={
-                <Suspense fallback={<LoadingScreen />}><AnimalDetailPage /></Suspense>
+                <Page><AnimalDetailPage /></Page>
               } />
               <Route path="parcelas"     element={
-                <Suspense fallback={<LoadingScreen />}><ParcelasPage /></Suspense>
+                <Page><ParcelasPage /></Page>
               } />
               <Route path="parcelas/:id" element={
-                <Suspense fallback={<LoadingScreen />}><ParcelasDetailPage /></Suspense>
+                <Page><ParcelasDetailPage /></Page>
               } />
               <Route path="clientes"     element={
-                <Suspense fallback={<LoadingScreen />}><ClientesPage /></Suspense>
+                <Page><ClientesPage /></Page>
               } />
               <Route path="clientes/:id" element={
-                <Suspense fallback={<LoadingScreen />}><ClienteDetailPage /></Suspense>
+                <Page><ClienteDetailPage /></Page>
               } />
               <Route path="agenda"       element={
-                <Suspense fallback={<LoadingScreen />}><AgendaPage /></Suspense>
+                <Page><AgendaPage /></Page>
               } />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

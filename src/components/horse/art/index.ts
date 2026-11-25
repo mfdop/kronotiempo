@@ -41,15 +41,20 @@ export function loadAllPoses(): Promise<void> {
   return pending
 }
 
-/** Loads every pose once; re-renders the caller when they arrive. */
-export function usePoseArts(enabled: boolean): boolean {
-  const [ready, setReady] = useState(() => !!cache.stand && !!cache.gallop)
+/** Loads the given poses (default: all) once; re-renders the caller when they arrive. */
+export function usePoseArts(enabled: boolean, names?: PoseName[]): boolean {
+  const need = names ?? (Object.keys(loaders) as PoseName[])
+  const [, force] = useState(0)
+  const ready = need.every(n => !!cache[n])
+  const sig = need.join(',')
   useEffect(() => {
     if (!enabled || ready) return
     let alive = true
-    loadAllPoses().then(() => { if (alive) setReady(true) }, () => {})
+    const p = names ? Promise.all(sig.split(',').map(n => loadPose(n as PoseName))).then(() => undefined) : loadAllPoses()
+    p.then(() => { if (alive) force(x => x + 1) }, () => {})
     return () => { alive = false }
-  }, [enabled, ready])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, ready, sig])
   return ready
 }
 

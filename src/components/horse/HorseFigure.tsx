@@ -96,7 +96,7 @@ function useActionClock(anim: string, live: boolean) {
     if (!def || !live) return
     const start = performance.now()
     const tick = (now: number) => {
-      const e = now - start
+      const e = Math.max(0, now - start)
       if (e >= def.ms) { setSt(null); return }
       setSt({ anim, ms: e })
       raf.current = requestAnimationFrame(tick)
@@ -133,7 +133,8 @@ export function HorseFigure({
   viewBox = HORSE_VIEWBOX, className, style, pose: poseName = 'stand', icon = false,
 }: HorseFigureProps) {
   const uid = 'hz' + useId().replace(/[^a-zA-Z0-9]/g, '')
-  const ready = usePoseArts(!icon)
+  // Static tiles only need the standing pose; live figures also need the action poses.
+  const ready = usePoseArts(!icon, live ? undefined : [poseName])
   const ms = useActionClock(anim, live && ready)
   const reduced = prefersReducedMotion()
   const def = ms === null ? undefined : HORSE_ANIMATIONS.find(a => a.id === anim)
@@ -178,7 +179,8 @@ export function HorseFigure({
 }
 
 /** Render helper for previews/tests: a given drawing + motion, no clock. */
-export function HorseArtStatic({ coat, art, motion = {}, ground = 'pedestal', viewBox = HORSE_VIEWBOX, style, icon = false, emote, layers }: {
+export function HorseArtStatic({ coat, art, motion = {}, ground = 'pedestal', viewBox = HORSE_VIEWBOX, style, icon = false, emote, layers, circleInk, groundInk }: {
+  circleInk?: string | null; groundInk?: string | null
   coat: HorseCoat; art: PoseArt; motion?: Motion; ground?: 'shadow' | 'pedestal' | 'none'; viewBox?: string
   style?: CSSProperties; icon?: boolean; emote?: { e: EmoteDef; t: number }; layers?: Layer[]
 }) {
@@ -187,7 +189,7 @@ export function HorseArtStatic({ coat, art, motion = {}, ground = 'pedestal', vi
   const main = ls[ls.length - 1]
   return (
     <svg viewBox={viewBox} style={{ display: 'block', ...style }}>
-      <Ground kind={ground} rx={Math.max(60, Math.min(120, main.art.box[2] * 0.48))} cx={main.art.box[0] + main.art.box[2] * 0.5} />
+      <Ground kind={ground} circleInk={circleInk} groundInk={groundInk} rx={Math.max(60, Math.min(120, main.art.box[2] * 0.48))} cx={main.art.box[0] + main.art.box[2] * 0.5} />
       {ls.map(l => (
         <g key={l.key} transform={xform(l.m, l.art)} opacity={l.op < 1 ? l.op.toFixed(3) : undefined}>
           <ArtView art={l.art} coat={coat} uid={uid + l.key} icon={icon} rot={l.m.parts} />
