@@ -85,11 +85,30 @@ export function useDeleteAnimal() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
+      // Preserve genealogy: copy this horse's name into children/pregnancies
+      // as external parent before the FK gets nulled by ON DELETE SET NULL.
+      const { data: self, error: selfErr } = await supabase
+        .from('animals').select('name').eq('id', id).single()
+      if (selfErr) throw selfErr
+      const name = (self as { name: string }).name
+      const steps = [
+        supabase.from('animals').update({ sire_external_name: name }).eq('sire_id', id),
+        supabase.from('animals').update({ dam_external_name: name }).eq('dam_id', id),
+        supabase.from('pregnancies').update({ sire_external_name: name }).eq('sire_id', id),
+      ]
+      for (const step of steps) {
+        const { error } = await step
+        if (error) throw error
+      }
       const { error } = await supabase.from('animals').delete().eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['animals'] })
+      qc.invalidateQueries({ queryKey: ['animals-meadow'] })
+      qc.invalidateQueries({ queryKey: ['animal'] })
+      qc.invalidateQueries({ queryKey: ['pregnancies'] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
     },
   })
 }

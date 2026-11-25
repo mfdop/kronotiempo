@@ -416,10 +416,14 @@ export function DeleteZone({
   label,
   onDelete,
   isPending = false,
+  description,
+  error,
 }: {
   label: string
   onDelete: () => void
   isPending?: boolean
+  description?: string
+  error?: string | null
 }) {
   const [step, setStep] = useState(0)
 
@@ -440,8 +444,11 @@ export function DeleteZone({
       <div className="px-4 py-3" style={{ background: '#FCEAEA' }}>
         <p className="text-[13px] font-bold" style={{ color: '#8C1F1F' }}>⚠ ¿Confirmar eliminación?</p>
         <p className="text-[11px] mt-0.5" style={{ color: '#6B5555' }}>
-          Esta acción no se puede deshacer. Se eliminarán todos los datos asociados.
+          Esta acción no se puede deshacer. {description ?? 'Se eliminarán todos los datos asociados.'}
         </p>
+        {error && (
+          <p className="text-[12px] font-semibold mt-2" style={{ color: '#8C1F1F' }}>{error}</p>
+        )}
       </div>
       <div className="flex gap-2 p-3" style={{ background: '#fff' }}>
         <button

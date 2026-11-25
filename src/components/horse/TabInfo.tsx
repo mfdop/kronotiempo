@@ -128,6 +128,7 @@ export default function TabInfo({ animal }: { animal: Animal }) {
   const [editing, setEditing] = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Local editable state — mirror all fields
   const [f, setF] = useState({
@@ -414,8 +415,16 @@ export default function TabInfo({ animal }: { animal: Animal }) {
       <div className="pt-2">
         <DeleteZone
           label={animal.name}
-          onDelete={() => deleteAnimal.mutate(animal.id, { onSuccess: () => navigate('/animales') })}
+          description={`Se eliminarán la ficha de ${animal.name} y todos sus registros (salud, herrado, documentos, tareas, etc.). Si es padre o madre de otros animales de la app, estos conservarán su nombre como progenitor externo.`}
+          onDelete={() => {
+            setDeleteError(null)
+            deleteAnimal.mutate(animal.id, {
+              onSuccess: () => navigate('/animales'),
+              onError: (e) => setDeleteError(errMsg(e, 'No se pudo eliminar el animal')),
+            })
+          }}
           isPending={deleteAnimal.isPending}
+          error={deleteError}
         />
       </div>
 

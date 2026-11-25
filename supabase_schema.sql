@@ -43,9 +43,9 @@ create table animals (
   azulejo_ground_ink   text,
   azulejo_circle_ink   text,
   -- genealogy
-  sire_id              uuid references animals(id),
+  sire_id              uuid references animals(id) on delete set null,
   sire_external_name   text,
-  dam_id               uuid references animals(id),
+  dam_id               uuid references animals(id) on delete set null,
   dam_external_name    text,
   sire_gs_external_name text,
   sire_gd_external_name text,
@@ -149,7 +149,7 @@ create table animal_genetics (
 create table pregnancies (
   id                   uuid primary key default uuid_generate_v4(),
   mare_id              uuid not null references animals(id) on delete cascade,
-  sire_id              uuid references animals(id),
+  sire_id              uuid references animals(id) on delete set null,
   sire_external_name   text,
   monta_type           text not null check (monta_type in ('natural','ia')),
   vet_name             text,
@@ -159,7 +159,7 @@ create table pregnancies (
   actual_birth_date    date,
   result               text not null default 'gestante'
                          check (result in ('gestante','cria_viva','aborto','gemelar','mortinato','no_prenada')),
-  foal_id              uuid references animals(id),
+  foal_id              uuid references animals(id) on delete set null,
   notes                text,
   created_at           timestamptz default now()
 );
@@ -337,7 +337,7 @@ create table tasks (
                  check (status in ('pendiente','completada')),
   origin       text not null default 'manual'
                  check (origin in ('manual','auto_parto','auto_herrado','auto_vacuna')),
-  animal_id    uuid references animals(id),
+  animal_id    uuid references animals(id) on delete cascade,
   priority     text check (priority in ('alta','media','baja')),
   completed_at timestamptz,
   created_at   timestamptz default now()
