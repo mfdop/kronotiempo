@@ -14,7 +14,7 @@ create table breeds (
 insert into breeds (name) values
   ('Appaloosa'),('PRE'),('Hispanoárabe'),('Anglo-Árabe'),('Árabe'),
   ('Quarter Horse'),('Paint Horse'),('Lusitano'),('Hannoveriano'),
-  ('Trakehner'),('Knabstrupper'),('Centroeuropeo'),('Cruzado'),('3 Sangres'),
+  ('Trakehner'),('Knabstrupper'),('Centroeuropeo'),('Cruzado'),('3 Sangres'),('CDE'),
   ('Otra');
 
 -- ── ANIMALS ──────────────────────────────────────────────────

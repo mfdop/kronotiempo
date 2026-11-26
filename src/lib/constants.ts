@@ -83,7 +83,7 @@ export const LOCI_SECONDARY = [
 // ─── BREEDS ──────────────────────────────────────────────────────────────────
 export const BREEDS = [
   'Appaloosa','PRE','Hispanoárabe','Anglo-Árabe','Árabe','Quarter Horse','Paint Horse',
-  'Lusitano','Hannoveriano','Trakehner','Knabstrupper','Centroeuropeo','Cruzado','3 Sangres','Otra',
+  'Lusitano','Hannoveriano','Trakehner','Knabstrupper','Centroeuropeo','Cruzado','3 Sangres','CDE','Otra',
 ] as const
 
 // ─── ANIMAL SEX LABELS ───────────────────────────────────────────────────────
